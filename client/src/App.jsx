@@ -8,8 +8,6 @@ import RiskSim from "./pages/RiskSim.jsx";
 import CapsuleSetup from "./pages/CapsuleSetup.jsx";
 import TxnTest from "./pages/TxnTest.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
-import BankLogin from './pages/BankLogin.jsx';
-import BankLoginModal from './pages/BankLoginModal.jsx';
 
 export default function App() {
   const nav = useNavigate();
@@ -53,8 +51,6 @@ export default function App() {
         <Route path="/capsule" element={<CapsuleSetup user={user} />} />
         <Route path="/txn" element={<TxnTest user={user} />} />
         <Route path="/audit" element={<AuditLog user={user} />} />
-        <Route path="/bank-login" element={<BankLogin />} /> 
-        <Route path="/bank-login-modal" element={<BankLoginModal />} />
       </Routes>
     </div>
   );
