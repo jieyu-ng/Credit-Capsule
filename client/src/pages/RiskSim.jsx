@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { api } from "../lib/api.js";
 
 export default function RiskSim({ user }) {
@@ -14,16 +14,46 @@ export default function RiskSim({ user }) {
   const [scenarioResults, setScenarioResults] = useState({});
   const [msg, setMsg] = useState("");
   const [isRunning, setIsRunning] = useState(false);
-  const [sensitivityParams, setSensitivityParams] = useState({ incomeVol: 0.1, expenseVol: 0.15 });
   const [showSensitivity, setShowSensitivity] = useState(false);
+  const [bankData, setBankData] = useState(null);
+  const [useBankData, setUseBankData] = useState(false);
 
   if (!user) return <div className="card">Please login first.</div>;
+
+  // Fetch bank data when component mounts or user changes
+  useEffect(() => {
+    if (user?.bankLinked) {
+      fetchBankData();
+    }
+  }, [user]);
+
+  const fetchBankData = async () => {
+    try {
+      const response = await api.get('/api/auth/bank-data');
+      if (response.data.success && response.data.data) {
+        setBankData(response.data.data);
+        
+        // Auto-populate fields with real bank data
+        if (response.data.data.averageMonthlyIncome) {
+          setIncomeMean(response.data.data.averageMonthlyIncome);
+          setIncomeStdev(Math.round(response.data.data.incomeVolatility * response.data.data.averageMonthlyIncome));
+          setExpMean(response.data.data.averageMonthlyExpenses);
+          setExpStdev(Math.round(response.data.data.expenseVolatility * response.data.data.averageMonthlyExpenses));
+          setUseBankData(true);
+          setMsg("✅ Bank data loaded! Parameters updated with your actual financial data.");
+          setTimeout(() => setMsg(""), 3000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch bank data:", err);
+    }
+  };
 
   async function run() {
     setMsg("");
     setIsRunning(true);
     try {
-      const r = await api.post("/api/risk/simulate", {
+      const payload = {
         simulations: Number(simulations),
         months: 6,
         monthlyIncomeMean: Number(incomeMean),
@@ -32,9 +62,30 @@ export default function RiskSim({ user }) {
         monthlyExpenseStdev: Number(expStdev),
         jobLossProb: Number(jobLossProb),
         emergencyProb: Number(emProb)
-      });
+      };
+      
+      // Add bank context if available
+      if (useBankData && bankData) {
+        payload.bankContext = {
+          accountType: bankData.accountType,
+          linkedDate: bankData.linkedDate,
+          incomeVolatility: bankData.incomeVolatility,
+          bankName: bankData.bankName
+        };
+      }
+      
+      const r = await api.post("/api/risk/simulate", payload);
       setResult(r.data);
       localStorage.setItem("lastPD", String(r.data.pd));
+      
+      // Store simulation context with bank data
+      if (useBankData) {
+        localStorage.setItem("simulationContext", JSON.stringify({
+          usedBankData: true,
+          bankName: bankData?.bankName,
+          timestamp: new Date().toISOString()
+        }));
+      }
     } catch (e) {
       setMsg(e?.response?.data?.error ? JSON.stringify(e.response.data.error) : "Simulation failed");
     } finally {
@@ -121,6 +172,77 @@ export default function RiskSim({ user }) {
       <h3>🎲 Monte Carlo Risk Engine</h3>
       <div className="small">Simulates income volatility + shock scenarios over 6 months</div>
 
+      {/* Bank Data Status Banner */}
+      {user.bankLinked && (
+        <div style={{ 
+          marginBottom: 15, 
+          padding: "12px", 
+          background: useBankData && bankData ? "#e8f5e9" : "#fff3e0", 
+          borderRadius: "8px",
+          borderLeft: `4px solid ${useBankData && bankData ? "#4caf50" : "#ff9800"}`
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <strong>🏦 Bank Account Linked</strong>
+              {bankData && (
+                <div className="small">
+                  {bankData.bankName} • {bankData.accountNumber} • Avg Income: ${bankData.averageMonthlyIncome}/mo
+                </div>
+              )}
+              {!bankData && (
+                <div className="small">
+                  Click refresh to load your bank data
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              {bankData && (
+                <button 
+                  style={{
+                    background: useBankData ? "#4caf50" : "#666",
+                    color: "white",
+                    border: "none",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}
+                  onClick={() => {
+                    setUseBankData(!useBankData);
+                    if (!useBankData && bankData) {
+                      setIncomeMean(bankData.averageMonthlyIncome);
+                      setIncomeStdev(Math.round(bankData.incomeVolatility * bankData.averageMonthlyIncome));
+                      setExpMean(bankData.averageMonthlyExpenses);
+                      setExpStdev(Math.round(bankData.expenseVolatility * bankData.averageMonthlyExpenses));
+                      setMsg("✅ Using bank data for simulation");
+                    } else {
+                      setMsg("📝 Using manual parameters");
+                    }
+                    setTimeout(() => setMsg(""), 2000);
+                  }}
+                >
+                  {useBankData ? "✓ Using Bank Data" : "Use Bank Data"}
+                </button>
+              )}
+              <button 
+                style={{
+                  background: "#2196f3",
+                  color: "white",
+                  border: "none",
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "12px"
+                }}
+                onClick={fetchBankData}
+              >
+                🔄 Refresh Bank Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="row">
         <div className="col">
           <label>Simulations (1,000–10,000)</label>
@@ -147,21 +269,19 @@ export default function RiskSim({ user }) {
           {isRunning ? "⏳ Running..." : "🎲 Run Single Simulation"}
         </button>
         <button className="btn-secondary" onClick={runScenarios} disabled={isRunning}>
-          📊 Compare Scenarios (Optimistic/Base/Stress)
+          📊 Compare Scenarios
         </button>
         <button className="btn-secondary" onClick={() => setShowSensitivity(!showSensitivity)}>
-          🎛️ {showSensitivity ? "Hide" : "Show"} Sensitivity Analysis
+          🎛️ {showSensitivity ? "Hide" : "Show"} Sensitivity
         </button>
       </div>
 
       {showSensitivity && (
         <div style={{ marginTop: 15, padding: "15px", background: "#f5f5f5", borderRadius: "8px" }}>
-          <h4 style={{ margin: "0 0 10px 0", fontSize: "14px" }}>🎛️ Sensitivity: Income Variation Impact</h4>
-          <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-            <button className="btn-small" onClick={runSensitivity} disabled={isRunning}>
-              Run Sensitivity Analysis
-            </button>
-          </div>
+          <h4 style={{ margin: "0 0 10px 0", fontSize: "14px" }}>🎛️ Income Sensitivity Analysis</h4>
+          <button className="btn-small" onClick={runSensitivity} disabled={isRunning}>
+            Run Sensitivity Analysis
+          </button>
         </div>
       )}
 
@@ -181,6 +301,11 @@ export default function RiskSim({ user }) {
               <div>📊 Probability of Default: <b style={{ color: getRiskColor(result.pd) }}>{(result.pd * 100).toFixed(2)}%</b></div>
               <div>⚠️ Risk Rating: <b>{getRiskLabel(result.pd)}</b></div>
               <div>💰 Suggested Capsule Limit: <b>${result.suggestedCapsuleLimit}</b> (factor {result.factor})</div>
+              {useBankData && bankData && (
+                <div className="small" style={{ marginTop: "5px", color: "#4caf50" }}>
+                  🏦 Based on linked bank data from {bankData.bankName}
+                </div>
+              )}
             </div>
             <div className="small">
               Based on {simulations.toLocaleString()} simulations over 6 months

@@ -18,6 +18,8 @@ export default function TxnTest({ user }) {
   const [batchTransactions, setBatchTransactions] = useState([]);
   const [batchResults, setBatchResults] = useState([]);
   const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [batchFaceToken, setBatchFaceToken] = useState("face_ok");
+  const [batchOtp, setBatchOtp] = useState("123456");
 
   if (!user) return <div className="card">Please login first.</div>;
 
@@ -36,16 +38,24 @@ export default function TxnTest({ user }) {
   async function testTransaction(txn) {
     const lastPD = Number(localStorage.getItem("lastPD") || "0.08");
     try {
-      const r = await api.post("/api/txn/test", {
+      // Use transaction-specific faceToken/OTP if provided, otherwise use batch defaults
+      const txnFaceToken = txn.faceToken || batchFaceToken;
+      const txnOtp = txn.otp || batchOtp;
+      
+      const payload = {
         merchant: txn.merchant,
         mcc: txn.mcc,
         amount: Number(txn.amount),
         deviceId: txn.deviceId || deviceId,
         geo: txn.geo || geo,
         pd: lastPD,
-        faceToken: txn.faceToken || faceToken,
-        otp: txn.otp || otp
-      });
+      };
+      
+      // Only add faceToken/OTP if they exist (for MED/HIGH risk transactions)
+      if (txnFaceToken) payload.faceToken = txnFaceToken;
+      if (txnOtp) payload.otp = txnOtp;
+      
+      const r = await api.post("/api/txn/test", payload);
       return { success: true, data: r.data, txn };
     } catch (e) {
       const data = e?.response?.data;
@@ -104,7 +114,9 @@ export default function TxnTest({ user }) {
       mcc: "GROCERY", 
       amount: 50,
       deviceId: deviceId,
-      geo: geo
+      geo: geo,
+      faceToken: batchFaceToken,
+      otp: batchOtp
     }]);
   }
 
@@ -118,21 +130,46 @@ export default function TxnTest({ user }) {
     setBatchTransactions(batchTransactions.filter((_, i) => i !== index));
   }
 
+  // Sample batch with face token and OTP included
   function loadSampleBatch() {
     setBatchTransactions([
-      { merchant: "Walmart", mcc: "GROCERY", amount: 45, deviceId: "device-1", geo: "KL" },
-      { merchant: "Netflix", mcc: "ENTERTAINMENT", amount: 15, deviceId: "device-1", geo: "KL" },
-      { merchant: "Uber", mcc: "TRANSPORT", amount: 25, deviceId: "device-2", geo: "SG" },
-      { merchant: "Apple Store", mcc: "ELECTRONICS", amount: 200, deviceId: "device-1", geo: "KL" },
-      { merchant: "Starbucks", mcc: "RESTAURANT", amount: 12, deviceId: "device-1", geo: "KL" }
+      { merchant: "Walmart", mcc: "GROCERY", amount: 45, deviceId: "device-1", geo: "KL", faceToken: "face_ok", otp: "123456" },
+      { merchant: "Giant", mcc: "GROCERY", amount: 30, deviceId: "device-1", geo: "KL", faceToken: "face_ok" },
+      { merchant: "7-Eleven", mcc: "GROCERY", amount: 15, deviceId: "device-1", geo: "KL" },
+      { merchant: "Petronas", mcc: "FUEL", amount: 50, deviceId: "device-1", geo: "KL" },
+      { merchant: "Grab", mcc: "TRANSPORT", amount: 18, deviceId: "device-1", geo: "KL" },
+      { merchant: "Netflix", mcc: "ENTERTAINMENT", amount: 15, deviceId: "device-2", geo: "SG", faceToken: "face_ok", otp: "123456", note: "HIGH risk - needs face+OTP" },
+      { merchant: "Apple Store", mcc: "ELECTRONICS", amount: 200, deviceId: "device-3", geo: "US", faceToken: "face_ok", otp: "123456", note: "HIGH risk - needs face+OTP" }
     ]);
+    setMsg("📋 Sample batch loaded - includes face token and OTP for high-risk transactions");
+    setTimeout(() => setMsg(""), 3000);
   }
 
-  const getStatusBadge = (approved) => {
-    if (approved === true) return { color: "#4caf50", text: "✅ APPROVED" };
-    if (approved === false) return { color: "#f44336", text: "❌ DENIED" };
-    return { color: "#999", text: "⚠️ ERROR" };
-  };
+  // Load a batch that specifically tests face token requirements
+  function loadFaceTokenTestBatch() {
+    setBatchTransactions([
+      { merchant: "Low Risk Store", mcc: "GROCERY", amount: 50, deviceId: "device-1", geo: "KL", note: "LOW risk - no face token needed" },
+      { merchant: "Medium Risk Store", mcc: "RESTAURANT", amount: 80, deviceId: "device-1", geo: "KL", faceToken: "face_ok", note: "MEDIUM risk - needs face token" },
+      { merchant: "Medium Risk - No Face", mcc: "RESTAURANT", amount: 80, deviceId: "device-1", geo: "KL", note: "MEDIUM risk - MISSING face token (should fail)" },
+      { merchant: "High Risk Store", mcc: "ENTERTAINMENT", amount: 100, deviceId: "device-2", geo: "SG", faceToken: "face_ok", otp: "123456", note: "HIGH risk - needs face token + OTP" },
+      { merchant: "High Risk - No OTP", mcc: "ENTERTAINMENT", amount: 100, deviceId: "device-2", geo: "SG", faceToken: "face_ok", note: "HIGH risk - MISSING OTP (should fail)" }
+    ]);
+    setMsg("🧪 Loaded face token test batch - shows how authentication affects approvals");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  // Load allowed only batch with proper authentication
+  function loadAllowedOnlyBatch() {
+    setBatchTransactions([
+      { merchant: "AEON Supermarket", mcc: "GROCERY", amount: 75, deviceId: "device-1", geo: "KL" },
+      { merchant: "Shell", mcc: "FUEL", amount: 45, deviceId: "device-1", geo: "KL" },
+      { merchant: "Rapid KL", mcc: "TRANSPORT", amount: 10, deviceId: "device-1", geo: "KL" },
+      { merchant: "MyNews", mcc: "GROCERY", amount: 25, deviceId: "device-1", geo: "KL" },
+      { merchant: "Caltex", mcc: "FUEL", amount: 55, deviceId: "device-1", geo: "KL" }
+    ]);
+    setMsg("✅ Loaded sample batch with ALLOWED transactions only");
+    setTimeout(() => setMsg(""), 3000);
+  }
 
   return (
     <div className="card">
@@ -160,6 +197,12 @@ export default function TxnTest({ user }) {
                 setMerchant(cat.name);
                 setMcc(cat.mcc);
                 setAmount(cat.amount);
+                // Auto-set face token for MEDIUM risk
+                if (cat.risk === "MEDIUM") setFaceToken("face_ok");
+                if (cat.risk === "HIGH") {
+                  setFaceToken("face_ok");
+                  setOtp("123456");
+                }
               }}
             >
               {cat.name} (${cat.amount})
@@ -215,9 +258,46 @@ export default function TxnTest({ user }) {
       ) : (
         // Batch Mode
         <div>
+          {/* Batch Authentication Settings */}
+          <div style={{
+            marginBottom: 15,
+            padding: "12px",
+            background: "#f5f5f5",
+            borderRadius: "8px",
+            border: "1px solid #e0e0e0"
+          }}>
+            <h4 style={{ margin: "0 0 10px 0", fontSize: "13px" }}>🔐 Batch Authentication Settings</h4>
+            <div style={{ display: "flex", gap: "15px", flexWrap: "wrap" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}>Default Face Token:</label>
+                <input 
+                  type="text" 
+                  value={batchFaceToken} 
+                  onChange={(e) => setBatchFaceToken(e.target.value)}
+                  style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #ccc" }}
+                  placeholder="face_ok"
+                />
+                <div className="small">Leave empty to skip face auth</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}>Default OTP:</label>
+                <input 
+                  type="text" 
+                  value={batchOtp} 
+                  onChange={(e) => setBatchOtp(e.target.value)}
+                  style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #ccc" }}
+                  placeholder="123456"
+                />
+                <div className="small">Leave empty to skip OTP</div>
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: "flex", gap: "10px", marginBottom: 15, flexWrap: "wrap" }}>
             <button className="btn-secondary" onClick={addBatchTransaction}>+ Add Transaction</button>
-            <button className="btn-secondary" onClick={loadSampleBatch}>📋 Load Sample Batch</button>
+            <button className="btn-secondary" onClick={loadSampleBatch}>📋 Load Mixed Sample</button>
+            <button className="btn-success" onClick={loadAllowedOnlyBatch}>✅ Load Allowed Only</button>
+            <button className="btn-warning" onClick={loadFaceTokenTestBatch}>🧪 Load Face Token Test</button>
             <button className="btn-primary" onClick={runBatchTests} disabled={isBatchRunning}>
               {isBatchRunning ? "⏳ Running..." : `▶️ Run ${batchTransactions.length} Tests`}
             </button>
@@ -226,9 +306,25 @@ export default function TxnTest({ user }) {
             )}
           </div>
           
+          {/* Tip Box */}
+          <div style={{
+            marginBottom: 15,
+            padding: "10px",
+            background: "#e3f2fd",
+            borderRadius: "8px",
+            fontSize: "12px",
+            borderLeft: "3px solid #2196f3"
+          }}>
+            💡 <strong>Authentication Tips:</strong><br/>
+            • <strong>LOW risk</strong> → No authentication needed<br/>
+            • <strong>MEDIUM risk</strong> → Requires Face Token (set to "face_ok")<br/>
+            • <strong>HIGH risk</strong> → Requires Face Token + OTP (OTP = "123456")<br/>
+            • You can override defaults per transaction by adding faceToken/otp fields
+          </div>
+          
           {batchTransactions.length === 0 ? (
             <div className="small" style={{ textAlign: "center", padding: "30px" }}>
-              No batch transactions. Click "+ Add Transaction" to start.
+              No batch transactions. Click a sample button or "+ Add Transaction" to start.
             </div>
           ) : (
             <div style={{ maxHeight: "400px", overflowY: "auto" }}>
@@ -270,6 +366,31 @@ export default function TxnTest({ user }) {
                       ✕
                     </button>
                   </div>
+                  
+                  {/* Authentication fields for this transaction */}
+                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Face Token (optional)"
+                      value={txn.faceToken || ""}
+                      onChange={(e) => updateBatchTransaction(idx, "faceToken", e.target.value)}
+                      style={{ flex: 1, padding: "4px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "11px" }}
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="OTP (optional)"
+                      value={txn.otp || ""}
+                      onChange={(e) => updateBatchTransaction(idx, "otp", e.target.value)}
+                      style={{ flex: 1, padding: "4px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "11px" }}
+                    />
+                  </div>
+                  
+                  {txn.note && (
+                    <div style={{ marginTop: "5px", fontSize: "10px", color: "#666", fontStyle: "italic" }}>
+                      📝 {txn.note}
+                    </div>
+                  )}
+                  
                   {batchResults[idx] && (
                     <div style={{ marginTop: "8px", fontSize: "11px" }}>
                       <span style={{ 
@@ -279,6 +400,9 @@ export default function TxnTest({ user }) {
                         {batchResults[idx].data?.approved === true ? "✅ APPROVED" : "❌ DENIED"}
                       </span>
                       {" • "}{batchResults[idx].data?.reason || batchResults[idx].data?.error || "No result"}
+                      {batchResults[idx].data?.risk?.tier && (
+                        <span style={{ marginLeft: "8px" }}>🎯 Risk: {batchResults[idx].data.risk.tier}</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -331,10 +455,24 @@ export default function TxnTest({ user }) {
               const approved = batchResults.filter(r => r.data?.approved === true).length;
               const denied = batchResults.filter(r => r.data?.approved === false).length;
               const total = batchResults.length;
+              const denialReasons = {};
+              batchResults.forEach(r => {
+                if (r.data?.approved === false && r.data?.reason) {
+                  denialReasons[r.data.reason] = (denialReasons[r.data.reason] || 0) + 1;
+                }
+              });
               return (
                 <>
                   <div>✅ Approved: <b>{approved}</b> ({((approved/total)*100).toFixed(0)}%)</div>
                   <div>❌ Denied: <b>{denied}</b> ({((denied/total)*100).toFixed(0)}%)</div>
+                  {Object.keys(denialReasons).length > 0 && (
+                    <div className="small" style={{ marginTop: "8px" }}>
+                      <strong>Denial reasons:</strong>
+                      {Object.entries(denialReasons).map(([reason, count]) => (
+                        <div key={reason}>• {reason}: {count} time(s)</div>
+                      ))}
+                    </div>
+                  )}
                   <div className="small">Total: {total} transactions processed</div>
                 </>
               );
@@ -348,12 +486,28 @@ export default function TxnTest({ user }) {
           background: linear-gradient(135deg, #4caf50, #45a049);
           color: white;
           border: none;
-          padding: 10px 24px;
+          padding: 8px 16px;
           border-radius: 6px;
           cursor: pointer;
         }
         .btn-secondary {
           background: #666;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .btn-success {
+          background: #4caf50;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .btn-warning {
+          background: #ff9800;
           color: white;
           border: none;
           padding: 8px 16px;

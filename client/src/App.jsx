@@ -8,6 +8,7 @@ import RiskSim from "./pages/RiskSim.jsx";
 import CapsuleSetup from "./pages/CapsuleSetup.jsx";
 import TxnTest from "./pages/TxnTest.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
+import BankLoginModal from "./components/BankLoginModal1.jsx"; 
 
 export default function App() {
   const nav = useNavigate();
@@ -15,6 +16,7 @@ export default function App() {
     const raw = localStorage.getItem("user");
     return raw ? JSON.parse(raw) : null;
   });
+  const [showBankModal, setShowBankModal] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -29,10 +31,53 @@ export default function App() {
     nav("/");
   }
 
+  const hasBankLinked = user?.bankLinked === true;
+
   return (
     <div className="container">
-      <h2>Risk-Aware Capsule Credit</h2>
-      <div className="small">Monte Carlo PD • Risk-tiered step-up auth • Blockchain audit trail</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Risk-Aware Capsule Credit</h2>
+          <div className="small">Monte Carlo PD • Risk-tiered step-up auth • Blockchain audit trail</div>
+        </div>
+        
+        {/* Bank Link Button - only show when user is logged in AND bank not linked */}
+        {user && !hasBankLinked && (
+          <button 
+            onClick={() => setShowBankModal(true)}
+            style={{
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "white",
+              border: "none",
+              padding: "8px 20px",
+              borderRadius: "25px",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: "500",
+              transition: "all 0.2s ease"
+            }}
+          >
+            🏦 Link Bank Account
+          </button>
+        )}
+        
+        {user && hasBankLinked && (
+          <div style={{
+            background: "#e8f5e9",
+            color: "#2e7d32",
+            padding: "6px 16px",
+            borderRadius: "25px",
+            fontSize: "13px",
+            fontWeight: "500",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            <span>✅</span>
+            <span>Bank Linked: {user.bankName || "Linked"}</span>
+          </div>
+        )}
+      </div>
 
       <div className="nav">
         <Link className="badge" to="/">Login</Link>
@@ -52,6 +97,18 @@ export default function App() {
         <Route path="/txn" element={<TxnTest user={user} />} />
         <Route path="/audit" element={<AuditLog user={user} />} />
       </Routes>
+
+      {/* Bank Login Modal - only renders when showBankModal is true */}
+      <BankLoginModal 
+        isOpen={showBankModal}
+        onClose={() => setShowBankModal(false)}
+        onSuccess={() => {
+          // Refresh user data after successful bank link
+          const updatedUser = JSON.parse(localStorage.getItem('user'));
+          setUser(updatedUser);
+          setShowBankModal(false);
+        }}
+      />
     </div>
   );
 }

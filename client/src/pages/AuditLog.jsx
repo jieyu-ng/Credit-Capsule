@@ -34,17 +34,14 @@ export default function AuditLog({ user }) {
   useEffect(() => {
     let filtered = [...events];
     
-    // Filter by event type
     if (filters.eventType !== "all") {
       filtered = filtered.filter(e => e.type === filters.eventType);
     }
     
-    // Filter by source
     if (filters.source !== "all") {
       filtered = filtered.filter(e => e.source === filters.source);
     }
     
-    // Filter by status (for TxnDecision events)
     if (filters.status !== "all") {
       filtered = filtered.filter(e => {
         if (e.type === "TxnDecision") {
@@ -56,7 +53,6 @@ export default function AuditLog({ user }) {
       });
     }
     
-    // Filter by search text
     if (filters.searchText) {
       const searchLower = filters.searchText.toLowerCase();
       filtered = filtered.filter(e => {
@@ -67,7 +63,6 @@ export default function AuditLog({ user }) {
       });
     }
     
-    // Filter by date range
     if (filters.dateRange !== "all") {
       const now = Date.now();
       let cutoff = 0;
@@ -82,7 +77,6 @@ export default function AuditLog({ user }) {
       });
     }
     
-    // Custom date range
     if (filters.startDate && filters.endDate) {
       const start = new Date(filters.startDate).getTime();
       const end = new Date(filters.endDate).getTime();
@@ -95,6 +89,254 @@ export default function AuditLog({ user }) {
     
     setFilteredEvents(filtered);
   }, [events, filters]);
+
+  // Helper function to flatten args for CSV
+  const flattenArgsForCSV = (args, eventType) => {
+    const flat = {};
+    
+    if (eventType === "TxnDecision") {
+      flat.merchant = args.merchant || args.merchantType || "";
+      flat.mcc = args.mcc || args.merchantType || "";
+      flat.amount = args.amount || "";
+      flat.status = args.approved ? "APPROVED" : (args.approved === false ? "DENIED" : args.decision || "");
+      flat.riskTier = args.riskTier || args.tier || "";
+      flat.reason = args.reason || "";
+      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
+      flat.user = args.user || "";
+    } 
+    else if (eventType === "CapsuleCreated") {
+      flat.capsuleId = args.capsuleId || "";
+      flat.amount = args.amount || "";
+      flat.merchantType = args.merchantType || "";
+      flat.feeRate = args.feeRate || "";
+      flat.expiry = args.expiry || "";
+      flat.user = args.user || "";
+      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
+    }
+    else {
+      // Generic flattening for other event types
+      Object.keys(args).forEach(key => {
+        const value = args[key];
+        if (typeof value !== 'object' && value !== undefined) {
+          flat[key] = value?.toString() || value;
+        } else if (value && typeof value === 'object') {
+          flat[key] = JSON.stringify(value);
+        }
+      });
+    }
+    
+    return flat;
+  };
+
+  // Updated CSV conversion with proper column separation
+  const convertToCSV = (eventsData) => {
+    if (eventsData.length === 0) return "";
+    
+    // Define all possible columns
+    const allColumns = [
+      "Source",
+      "Event Type",
+      "Block Number",
+      "Transaction Hash",
+      "Log Index",
+      "Timestamp",
+      // TxnDecision specific columns
+      "Merchant",
+      "MCC",
+      "Amount",
+      "Status",
+      "Risk Tier",
+      "Reason",
+      // CapsuleCreated specific columns
+      "Capsule ID",
+      "Merchant Type",
+      "Fee Rate",
+      "Expiry",
+      // Common columns
+      "User Address",
+      "Additional Data"
+    ];
+    
+    // Build rows
+    const rows = eventsData.map(event => {
+      const args = formatArgs(event.args);
+      const flatArgs = flattenArgsForCSV(args, event.type);
+      
+      const timestamp = flatArgs.timestamp || (event.blockNumber ? new Date(event.blockNumber * 1000).toLocaleString() : "");
+      
+      const row = {
+        "Source": event.source || "unknown",
+        "Event Type": event.type === "TxnDecision" ? "Transaction Decision" : "Capsule Created",
+        "Block Number": event.blockNumber || "",
+        "Transaction Hash": event.transactionHash || "",
+        "Log Index": event.logIndex || "",
+        "Timestamp": timestamp,
+        "Merchant": flatArgs.merchant || "",
+        "MCC": flatArgs.mcc || "",
+        "Amount": flatArgs.amount || "",
+        "Status": flatArgs.status || "",
+        "Risk Tier": flatArgs.riskTier || "",
+        "Reason": flatArgs.reason || "",
+        "Capsule ID": flatArgs.capsuleId || "",
+        "Merchant Type": flatArgs.merchantType || "",
+        "Fee Rate": flatArgs.feeRate || "",
+        "Expiry": flatArgs.expiry || "",
+        "User Address": flatArgs.user || "",
+        "Additional Data": JSON.stringify(flatArgs).substring(0, 500) // Limit to avoid huge cells
+      };
+      
+      return row;
+    });
+    
+    // Convert to CSV string
+    const headers = allColumns;
+    const csvRows = [
+      headers.join(","),
+      ...rows.map(row => {
+        return headers.map(header => {
+          const value = row[header] || "";
+          // Escape quotes and wrap in quotes if contains comma or newline
+          const escaped = String(value).replace(/"/g, '""');
+          return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped;
+        }).join(",");
+      })
+    ];
+    
+    return csvRows.join("\n");
+  };
+
+  // Alternative: Simple CSV with key columns only
+  const convertToSimpleCSV = (eventsData) => {
+    if (eventsData.length === 0) return "";
+    
+    const headers = [
+      "Date/Time",
+      "Event Type",
+      "Source",
+      "Merchant",
+      "MCC",
+      "Amount",
+      "Status",
+      "Risk Tier",
+      "Reason",
+      "Transaction Hash"
+    ];
+    
+    const rows = eventsData.map(event => {
+      const args = formatArgs(event.args);
+      const flatArgs = flattenArgsForCSV(args, event.type);
+      
+      const timestamp = flatArgs.timestamp 
+        ? new Date(flatArgs.timestamp).toLocaleString() 
+        : (event.blockNumber ? new Date(event.blockNumber * 1000).toLocaleString() : "");
+      
+      return [
+        timestamp,
+        event.type === "TxnDecision" ? "Transaction" : "Capsule",
+        event.source || "unknown",
+        flatArgs.merchant || "",
+        flatArgs.mcc || "",
+        flatArgs.amount || "",
+        flatArgs.status || (flatArgs.approved ? "APPROVED" : ""),
+        flatArgs.riskTier || "",
+        flatArgs.reason || "",
+        event.transactionHash ? event.transactionHash.substring(0, 20) + "..." : ""
+      ];
+    });
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    return csvContent;
+  };
+
+  const convertToJSON = (eventsData) => {
+    return JSON.stringify(eventsData.map(event => ({
+      source: event.source || "unknown",
+      type: event.type,
+      blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash,
+      blockHash: event.blockHash,
+      logIndex: event.logIndex,
+      exportDate: new Date().toISOString(),
+      args: formatArgs(event.args)
+    })), null, 2);
+  };
+
+  const downloadFile = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExport = () => {
+    if (filteredEvents.length === 0) {
+      setMsg("⚠️ No events to export. Please load logs first.");
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
+    
+    if (exportFormat === "csv") {
+      // Use detailed CSV with separate columns
+      const csvData = convertToCSV(filteredEvents);
+      downloadFile(csvData, `audit_log_${username}_${timestamp}.csv`, "text/csv");
+      setMsg(`📊 Exported ${filteredEvents.length} events to CSV with separate columns`);
+    } else {
+      const jsonData = convertToJSON(filteredEvents);
+      downloadFile(jsonData, `audit_log_${username}_${timestamp}.json`, "application/json");
+      setMsg(`🔧 Exported ${filteredEvents.length} events to JSON`);
+    }
+    
+    setTimeout(() => {
+      setMsg(prev => prev.includes("Exported") ? "" : prev);
+    }, 3000);
+  };
+
+  const handleExportSimple = () => {
+    if (filteredEvents.length === 0) {
+      setMsg("⚠️ No events to export. Please load logs first.");
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
+    
+    const csvData = convertToSimpleCSV(filteredEvents);
+    downloadFile(csvData, `audit_log_simple_${username}_${timestamp}.csv`, "text/csv");
+    setMsg(`📊 Exported ${filteredEvents.length} events to simplified CSV`);
+    
+    setTimeout(() => {
+      setMsg(prev => prev.includes("Exported") ? "" : prev);
+    }, 3000);
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (filteredEvents.length === 0) {
+      setMsg("⚠️ No events to copy.");
+      return;
+    }
+
+    const jsonData = convertToJSON(filteredEvents);
+    try {
+      await navigator.clipboard.writeText(jsonData);
+      setMsg(`📋 Copied ${filteredEvents.length} events to clipboard`);
+      setTimeout(() => {
+        setMsg(prev => prev.includes("copied") ? "" : prev);
+      }, 3000);
+    } catch (err) {
+      setMsg("❌ Failed to copy to clipboard");
+    }
+  };
 
   // Load Recent Off-Chain Decisions
   async function loadRecentDecisions() {
@@ -317,109 +559,6 @@ export default function AuditLog({ user }) {
     return result;
   };
 
-  const convertToCSV = (eventsData) => {
-    if (eventsData.length === 0) return "";
-    
-    const headers = [
-      "Source",
-      "Type",
-      "Block Number",
-      "Transaction Hash",
-      "Block Hash",
-      "Log Index",
-      "Timestamp (Local)",
-      "Arguments (JSON)"
-    ];
-    
-    const rows = eventsData.map(event => {
-      const argsObj = formatArgs(event.args);
-      return [
-        event.source || "unknown",
-        event.type,
-        event.blockNumber,
-        event.transactionHash,
-        event.blockHash,
-        event.logIndex,
-        new Date().toLocaleString(),
-        JSON.stringify(argsObj)
-      ];
-    });
-    
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    ].join("\n");
-    
-    return csvContent;
-  };
-
-  const convertToJSON = (eventsData) => {
-    return JSON.stringify(eventsData.map(event => ({
-      source: event.source || "unknown",
-      type: event.type,
-      blockNumber: event.blockNumber,
-      transactionHash: event.transactionHash,
-      blockHash: event.blockHash,
-      logIndex: event.logIndex,
-      exportDate: new Date().toISOString(),
-      args: formatArgs(event.args)
-    })), null, 2);
-  };
-
-  const downloadFile = (content, filename, mimeType) => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExport = () => {
-    if (filteredEvents.length === 0) {
-      setMsg("⚠️ No events to export. Please load logs first.");
-      return;
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
-    
-    if (exportFormat === "csv") {
-      const csvData = convertToCSV(filteredEvents);
-      downloadFile(csvData, `audit_log_${username}_${timestamp}.csv`, "text/csv");
-      setMsg(`📊 Exported ${filteredEvents.length} events to CSV`);
-    } else {
-      const jsonData = convertToJSON(filteredEvents);
-      downloadFile(jsonData, `audit_log_${username}_${timestamp}.json`, "application/json");
-      setMsg(`🔧 Exported ${filteredEvents.length} events to JSON`);
-    }
-    
-    setTimeout(() => {
-      setMsg(prev => prev.includes("Exported") ? "" : prev);
-    }, 3000);
-  };
-
-  const handleCopyToClipboard = async () => {
-    if (filteredEvents.length === 0) {
-      setMsg("⚠️ No events to copy.");
-      return;
-    }
-
-    const jsonData = convertToJSON(filteredEvents);
-    try {
-      await navigator.clipboard.writeText(jsonData);
-      setMsg(`📋 Copied ${filteredEvents.length} events to clipboard`);
-      setTimeout(() => {
-        setMsg(prev => prev.includes("copied") ? "" : prev);
-      }, 3000);
-    } catch (err) {
-      setMsg("❌ Failed to copy to clipboard");
-    }
-  };
-
   const getSummary = () => {
     const capsuleCount = filteredEvents.filter(e => e.type === "CapsuleCreated").length;
     const txnCount = filteredEvents.filter(e => e.type === "TxnDecision").length;
@@ -569,12 +708,15 @@ export default function AuditLog({ user }) {
                 className="filter-select"
                 style={{ width: "auto" }}
               >
-                <option value="csv">📊 CSV</option>
+                <option value="csv">📊 CSV (Detailed)</option>
                 <option value="json">🔧 JSON</option>
               </select>
             </div>
             <button className="btn-primary" onClick={handleExport}>
-              💾 Download ({filteredEvents.length} events)
+              💾 Download {exportFormat.toUpperCase()}
+            </button>
+            <button className="btn" onClick={handleExportSimple}>
+              📊 Download Simple CSV
             </button>
             <button className="btn" onClick={handleCopyToClipboard}>
               📋 Copy to Clipboard
