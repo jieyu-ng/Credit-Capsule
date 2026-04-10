@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { db } from "../storage/memoryDb.js";
 import { logCapsuleCreated } from "../services/auditChain.js";
+import { getClient } from "../services/dashClient.js";
 
 export const capsuleRouter = express.Router();
 
@@ -41,8 +42,51 @@ capsuleRouter.post("/create", requireAuth, async (req, res) => {
     todayDate: today
   });
 
-  const rulesHash = "0x" + crypto.createHash("sha256").update(JSON.stringify(rules)).digest("hex");
-  const chain = await logCapsuleCreated({ userAddress: user.userAddress, rulesHash, limit: rules.capsuleLimit });
+  const rulesHash = "0x" + crypto
+    .createHash("sha256")
+    .update(JSON.stringify(rules))
+    .digest("hex");
 
-  return res.json({ ok: true, rulesHash, chain });
+  // 🔗 Anchor to Dash
+  const dashDoc = await anchorCapsuleOnDash(
+    req.session.identityId, // or req.user.identityId (depending on your auth)
+    rulesHash
+  );
+
+  // 🧾 Existing audit chain
+  const chain = await logCapsuleCreated({
+    userAddress: user.userAddress,
+    rulesHash,
+    limit: rules.capsuleLimit
+  });
+
+  return res.json({
+    ok: true,
+    rulesHash,
+    dash: dashDoc,
+    chain
+  });
 });
+
+async function anchorCapsuleOnDash(identityId, rulesHash) {
+  const client = getClient();
+
+  const identity = await client.platform.identities.get(identityId);
+
+  const doc = await client.platform.documents.create(
+    `${process.env.DASH_CONTRACT_ID}.creditCapsule`,
+    identity,
+    {
+      ownerId: identityId,
+      rulesHash,
+      createdAt: Date.now(),
+    }
+  );
+
+  await client.platform.documents.broadcast(
+    { create: [doc] },
+    identity
+  );
+
+  return doc.toJSON();
+}
