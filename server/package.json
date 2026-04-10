@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dash:setup": "node scripts/setupLocal.cjs",
     "dev": "node --watch src/index.js",
     "start": "node src/index.js"
   },

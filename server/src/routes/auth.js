@@ -26,7 +26,9 @@ authRouter.post("/register", async (req, res) => {
   // Demo “blockchain user address”: derived-ish fake (don’t do this in prod)
   const userAddress = "0x" + id.padStart(40, "0");
 
-  db.users.set(id, { id, email, passwordHash, approvedLimit, userAddress });
+  const identityId = process.env.DASH_IDENTITY_ID;
+
+  db.users.set(id, { id, email, passwordHash, approvedLimit, userAddress, identityId });
 
   return res.json({ ok: true });
 });
@@ -53,6 +55,6 @@ authRouter.post("/login", async (req, res) => {
 
   return res.json({
     token,
-    user: { id: user.id, email: user.email, approvedLimit: user.approvedLimit, userAddress: user.userAddress }
+    user: { id: user.id, email: user.email, approvedLimit: user.approvedLimit, userAddress: user.userAddress, identityId: user.identityId }
   });
 });

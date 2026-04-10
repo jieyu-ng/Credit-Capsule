@@ -2,13 +2,14 @@ const Dash = require('dash');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
-const { getClient } = require('./dashClient.cjs');
+const { getClient } = require('./dashClient.js');
 
 // Get the client instance ONCE
 const client = getClient();
 const MNEMONIC = client.wallet.mnemonic;
 
 let PERMANENT_ADDRESS = null;
+let selectedContainer = null;
 
 async function getPermanentAddress() {
     if (!PERMANENT_ADDRESS) {
@@ -22,9 +23,11 @@ async function getPermanentAddress() {
 async function generateBlocks(count, address) {
     console.log(`⛏️  Generating ${count} block(s) to ${address}...`);
     try {
-        const { stdout } = await execPromise('docker ps --filter "name=core" --format "{{.Names}}"');
-        const containerName = stdout.trim().split('\n');
-        selectedContainer = containerName.find(name => name.includes('seed'));
+        if (!selectedContainer) {
+            const { stdout } = await execPromise('docker ps --filter "name=core" --format "{{.Names}}"');
+            const containerName = stdout.trim().split('\n');
+            selectedContainer = containerName.find(name => name.includes('seed'));
+        }
 
         await execPromise(
             `docker exec ${selectedContainer} dash-cli -regtest generatetoaddress ${count} ${address}`
@@ -38,16 +41,24 @@ async function generateBlocks(count, address) {
 
 async function getOrCreateIdentity() {
     const account = await client.wallet.getAccount();
-    const identityIds = await account.identities.getIdentityIds();
+    let identityIds = await account.identities.getIdentityIds();
 
-    if (identityIds.length > 0) {
-        console.log('Using existing identity:', identityIds[0]);
-        return identityIds[0];
+    if (identityIds && identityIds.length > 0) {
+        const identityId = identityIds[0];
+        console.log('Using existing identity:', identityId.toString());
+        return identityId.toString();
     }
 
     console.log('Registering new identity...');
     const identity = await client.platform.identities.register();
-    return identity.getId().toString();
+    const identityId = identity.getId().toString();
+    console.log(`✅ Identity created: ${identityId}`);
+
+    // Mine blocks to confirm
+    const permanentAddress = await getPermanentAddress();
+    await generateBlocks(5, permanentAddress.address);
+
+    return identityId;
 }
 
 async function topupIdentity() {
@@ -63,28 +74,29 @@ async function topupIdentity() {
         let balance = account.getConfirmedBalance();
         console.log(`Wallet balance: ${Number(balance) / 100000000} Dash`);
 
-        await generateBlocks(100, permanentAddress.address);
+        // Generate initial blocks if balance is 0
+        if (balance === 0) {
+            console.log('\n⛏️  Generating initial blocks to fund wallet...');
+            await generateBlocks(100, permanentAddress.address);
 
-        console.log('⏳ Waiting for wallet to sync (10 seconds)...');
-        await new Promise(resolve => setTimeout(resolve, 10000));
+            // Wait for wallet to sync
+            console.log('⏳ Waiting for wallet to sync (10 seconds)...');
+            await new Promise(resolve => setTimeout(resolve, 10000));
 
-        account = await client.wallet.getAccount();
-        await account.fetchStatus();
-        balance = account.getConfirmedBalance(); // Re-fetch the balance!
-        console.log(`Wallet balance: ${Number(balance) / 100000000} Dash`);
+            balance = account.getConfirmedBalance();
+            console.log(`Wallet balance after mining: ${Number(balance) / 100000000} Dash`);
 
-        console.log('\n⛏️  Mining 100 additional blocks to mature coinbase (required for spending)...');
-        await generateBlocks(100, permanentAddress.address);
+            // Mine additional blocks to mature coinbase
+            console.log('\n⛏️  Mining additional blocks to mature coinbase...');
+            await generateBlocks(100, permanentAddress.address);
+            await new Promise(resolve => setTimeout(resolve, 10000));
 
-        console.log('⏳ Waiting for wallet to sync (10 seconds)...');
-        await new Promise(resolve => setTimeout(resolve, 10000));
-
-        account = await client.wallet.getAccount();
-        balance = account.getConfirmedBalance();
-        console.log(`💰 Wallet balance after maturity: ${Number(balance) / 100000000} Dash`);
+            balance = account.getConfirmedBalance();
+            console.log(`Wallet balance after maturity: ${Number(balance) / 100000000} Dash`);
+        }
 
         const identityId = await getOrCreateIdentity();
-        console.log(`✅ Identity: ${identityId}`);
+        console.log(`\n✅ Identity: ${identityId}`);
 
         console.log('\n⛏️  Confirming registration...');
         await generateBlocks(5, permanentAddress.address);
@@ -111,8 +123,8 @@ async function topupIdentity() {
         console.log(`💰 Identity Balance: ${finalBalance} credits`);
         console.log('='.repeat(50));
 
-        await client.disconnect(); // Disconnect the client
-        process.exit(0); // Force exit
+        await client.disconnect();
+        process.exit(0);
 
     } catch (error) {
         console.error('\n❌ Error:', error.message);
@@ -121,4 +133,6 @@ async function topupIdentity() {
     }
 }
 
-topupIdentity();
+module.exports = { generateBlocks, topupIdentity };
+
+//topupIdentity();

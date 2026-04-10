@@ -1,4 +1,4 @@
-const { getClient } = require('./dashClient.cjs');
+const { getClient } = require('./dashClient.js');
 
 async function createCapsule(identityId, contractId, score) {
     // Initialize client WITH the contract
