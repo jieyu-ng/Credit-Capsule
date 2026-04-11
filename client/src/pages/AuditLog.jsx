@@ -22,7 +22,7 @@ export default function AuditLog({ user }) {
 
   if (!user) return <div className="card">🔐 Please login first.</div>;
 
-  // Apply filters whenever events or filters change
+  // Apply filters whenever events or filters change (admin only)
   useEffect(() => {
     let filtered = [...events];
 
@@ -494,6 +494,7 @@ export default function AuditLog({ user }) {
           borderTop: "1px solid #e0e0e0",
           paddingTop: 15,
           marginTop: 15
+          marginTop: 15
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <h4 style={{ margin: 0, fontSize: "14px" }}>🔍 Filters</h4>
@@ -509,7 +510,9 @@ export default function AuditLog({ user }) {
               className="filter-select"
             >
               <option value="all">All Events</option>
+              <option value="all">All Events</option>
               <option value="CapsuleCreated">📦 Capsule Created</option>
+              <option value="TxnDecision">💳 Transaction</option>
               <option value="TxnDecision">💳 Transaction</option>
             </select>
 
@@ -585,6 +588,7 @@ export default function AuditLog({ user }) {
             flexWrap: "wrap",
             paddingTop: 12,
             marginTop: 12,
+            marginTop: 12,
             borderTop: "1px solid #e0e0e0"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -596,12 +600,14 @@ export default function AuditLog({ user }) {
                 style={{ width: "auto" }}
               >
                 <option value="csv">📊 CSV</option>
+                <option value="csv">📊 CSV</option>
                 <option value="json">🔧 JSON</option>
               </select>
             </div>
             <button className="btn-primary-small" onClick={handleExport}>
-              💾 Download {exportFormat.toUpperCase()}
-            </button>
+              <button className="btn-primary-small" onClick={handleExport}>
+                💾 Download {exportFormat.toUpperCase()}
+              </button>
           </div>
         )}
 
@@ -622,75 +628,78 @@ export default function AuditLog({ user }) {
         <div style={{ background: "#f5f5f5", padding: "12px", borderRadius: "8px", marginBottom: "15px" }}>
           <div className="small">
             📊 Showing {filteredEvents.length} of {events.length} total events
-          </div>
-        </div>
-      )}
-
-      {/* Events List */}
-      {filteredEvents.length === 0 && events.length > 0 ? (
-        <div className="small">🔍 No events match your filters. Try adjusting the filters above.</div>
-      ) : filteredEvents.length === 0 ? (
-        <div className="small">💡 No events loaded yet. Choose a data source above.</div>
-      ) : (
-        <div style={{ maxHeight: "500px", overflowY: "auto" }}>
-          {filteredEvents.map((e, i) => {
-            const sourceBadge = getSourceBadge(e.source);
-            const isApproved = e.approved;
-
-            return (
-              <div key={i} style={{
-                marginBottom: "10px",
-                padding: "12px",
-                border: "1px solid #e0e0e0",
-                borderRadius: "8px",
-                background: e.type === "TxnDecision" && isApproved !== undefined
-                  ? (isApproved ? "#e8f5e9" : "#ffebee")
-                  : "white"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                  <div>
-                    <span style={{
-                      display: "inline-block",
-                      padding: "2px 8px",
-                      borderRadius: "4px",
-                      fontSize: "10px",
-                      fontWeight: "bold",
-                      backgroundColor: sourceBadge.color,
-                      color: "white",
-                      marginRight: "8px"
-                    }}>
-                      {sourceBadge.label}
-                    </span>
-                    <b>
-                      {e.type === "CapsuleCreated" ? "📦 Capsule Created" : "💳 Transaction Decision"}
-                    </b>
-                    {e.type === "TxnDecision" && isApproved !== undefined && (
-                      <span style={{ marginLeft: "8px", fontSize: "12px" }}>
-                        {isApproved ? "✅ APPROVED" : "❌ DENIED"}
-                      </span>
-                    )}
-                  </div>
-                  {e.documentId && (
-                    <div className="small" style={{ fontFamily: "monospace", fontSize: "10px" }}>
-                      📄 Doc: {e.documentId.slice(0, 10)}...
-                    </div>
-                  )}
-                </div>
-                <div className="small" style={{ marginTop: "5px", wordBreak: "break-all" }}>
-                  {e.type === "TxnDecision" ? (
-                    <>Merchant: {e.merchant} | MCC: {e.mcc} | Amount: ${e.amount} | Risk: {e.riskTier}</>
-                  ) : (
-                    <>Capsule Limit: ${e.capsuleLimit} | Type: {e.capsuleType}</>
-                  )}
-                  {e.timestamp && <div style={{ marginTop: "5px", color: "#666" }}>🕐 {new Date(e.timestamp).toLocaleString()}</div>}
-                </div>
+            <div style={{ background: "#f5f5f5", padding: "12px", borderRadius: "8px", marginBottom: "15px" }}>
+              <div className="small">
+                📊 Showing {filteredEvents.length} of {events.length} total events
               </div>
-            );
-          })}
-        </div>
+            </div>
       )}
 
-      <style>{`
+            {/* Events List */}
+            {filteredEvents.length === 0 && events.length > 0 ? (
+              <div className="small">🔍 No events match your filters. Try adjusting the filters above.</div>
+            ) : filteredEvents.length === 0 ? (
+              <div className="small">💡 No events loaded yet. Choose a data source above.</div>
+            ) : (
+              <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+                {filteredEvents.map((e, i) => {
+                  const sourceBadge = getSourceBadge(e.source);
+                  const isApproved = e.approved;
+
+                  return (
+                    <div key={i} style={{
+                      marginBottom: "10px",
+                      padding: "12px",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "8px",
+                      background: e.type === "TxnDecision" && isApproved !== undefined
+                        ? (isApproved ? "#e8f5e9" : "#ffebee")
+                        : "white"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                        <div>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "10px",
+                            fontWeight: "bold",
+                            backgroundColor: sourceBadge.color,
+                            color: "white",
+                            marginRight: "8px"
+                          }}>
+                            {sourceBadge.label}
+                          </span>
+                          <b>
+                            {e.type === "CapsuleCreated" ? "📦 Capsule Created" : "💳 Transaction Decision"}
+                          </b>
+                          {e.type === "TxnDecision" && isApproved !== undefined && (
+                            <span style={{ marginLeft: "8px", fontSize: "12px" }}>
+                              {isApproved ? "✅ APPROVED" : "❌ DENIED"}
+                            </span>
+                          )}
+                        </div>
+                        {e.documentId && (
+                          <div className="small" style={{ fontFamily: "monospace", fontSize: "10px" }}>
+                            📄 Doc: {e.documentId.slice(0, 10)}...
+                          </div>
+                        )}
+                      </div>
+                      <div className="small" style={{ marginTop: "5px", wordBreak: "break-all" }}>
+                        {e.type === "TxnDecision" ? (
+                          <>Merchant: {e.merchant} | MCC: {e.mcc} | Amount: ${e.amount} | Risk: {e.riskTier}</>
+                        ) : (
+                          <>Capsule Limit: ${e.capsuleLimit} | Type: {e.capsuleType}</>
+                        )}
+                        {e.timestamp && <div style={{ marginTop: "5px", color: "#666" }}>🕐 {new Date(e.timestamp).toLocaleString()}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <style>{`
         .btn-dash, .btn-demo {
           padding: 8px 18px;
           border-radius: 6px;
@@ -709,6 +718,14 @@ export default function AuditLog({ user }) {
           border-radius: 6px;
           cursor: pointer;
         }
+        .btn-primary-small {
+          background: #4caf50;
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 6px;
+          cursor: pointer;
+        }
         .btn-small {
           background: #666;
           color: white;
@@ -716,6 +733,7 @@ export default function AuditLog({ user }) {
           border-radius: 4px;
           cursor: pointer;
           font-size: 12px;
+          padding: 4px 12px;
           padding: 4px 12px;
         }
         .filter-select, .filter-input {
@@ -731,7 +749,11 @@ export default function AuditLog({ user }) {
           font-size: 12px;
           color: #666;
         }
+        .small {
+          font-size: 12px;
+          color: #666;
+        }
       `}</style>
-    </div>
-  );
+          </div>
+          );
 }

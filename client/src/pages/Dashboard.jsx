@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../lib/api.js";
 
+
 // Simple bar chart component using CSS
 const SimpleBarChart = ({ data, title, valueKey, labelKey, color = "#4caf50" }) => {
   const maxValue = Math.max(...data.map(d => d[valueKey]), 0);
@@ -51,26 +52,26 @@ const SimpleLineChart = ({ data, title }) => {
   const range = maxValue - minValue || 1;
   
   const points = data.map((d, idx) => {
-    const x = (idx / (data.length - 1)) * 100;
-    const y = 100 - ((d.value - minValue) / range) * 90;
+    const x = (idx / (data.length - 1)) * 380;
+    const y = 55 - ((d.value - minValue) / range) * 50;
     return `${x},${y}`;
   }).join(" ");
   
   return (
     <div style={{ marginBottom: "20px" }}>
       <h4 style={{ margin: "0 0 10px 0", fontSize: "14px" }}>{title}</h4>
-      <svg viewBox="0 0 100 60" style={{ width: "100%", height: "80px" }}>
-        <polyline
+      <svg viewBox="0 0 100 60" style={{ width: "100%", height: "80px"}}>
+        <polyline 
           points={points}
           fill="none"
           stroke="#4caf50"
           strokeWidth="2"
         />
         {data.map((d, idx) => {
-          const x = (idx / (data.length - 1)) * 100;
-          const y = 100 - ((d.value - minValue) / range) * 90;
+          const x = (idx / (data.length - 1)) *380;
+          const y = 55 - ((d.value - minValue) / range) * 50;
           return (
-            <circle key={idx} cx={x} cy={y} r="1.5" fill="#2196f3" />
+            <circle key={idx} cx={x} cy={y} r="2" fill="#2196f3" />
           );
         })}
       </svg>
@@ -135,26 +136,62 @@ export default function Dashboard({ user }) {
     HIGH: txns.filter(t => t.riskTier === "HIGH").length
   };
   
-  // Time series data for last 7 days
+  // Helper function to get date in local timezone YYYY-MM-DD format
+  const getLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Create last 7 days using LOCAL date, not UTC
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - i);
-    return date.toISOString().split('T')[0];
+    date.setHours(0, 0, 0, 0); // Reset to start of local day
+    return date;
   }).reverse();
-  
+
+  // Daily Volume with proper date matching
   const dailyVolume = last7Days.map(day => {
-    const dayTxns = txns.filter(t => t.timestamp?.startsWith(day));
+    const dayStart = new Date(day);
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    
+    // Filter transactions that fall within this local day
+    const dayTxns = txns.filter(t => {
+      if (!t.timestamp) return false;
+      const txnDate = new Date(t.timestamp);
+      return txnDate >= dayStart && txnDate < dayEnd;
+    });
+    
+    const volume = dayTxns.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    
+    // Debug log to see what's happening
+    console.log(`Date ${getLocalDate(day)}: ${dayTxns.length} transactions, $${volume}`);
+    
     return {
-      label: day.slice(5),
-      value: dayTxns.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
+      label: `${day.getMonth()+1}/${day.getDate()}`, // Shows as "4/11"
+      value: volume
     };
   });
-  
+
+  // Daily Approvals with proper date matching
   const dailyApprovals = last7Days.map(day => {
-    const dayTxns = txns.filter(t => t.timestamp?.startsWith(day));
+    const dayStart = new Date(day);
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    
+    const dayTxns = txns.filter(t => {
+      if (!t.timestamp) return false;
+      const txnDate = new Date(t.timestamp);
+      return txnDate >= dayStart && txnDate < dayEnd;
+    });
+    
     const approved = dayTxns.filter(t => t.approved).length;
+    
     return {
-      label: day.slice(5),
+      label: `${day.getMonth()+1}/${day.getDate()}`,
       value: approved
     };
   });

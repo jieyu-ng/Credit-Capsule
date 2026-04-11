@@ -8,7 +8,7 @@ import RiskSim from "./pages/RiskSim.jsx";
 import CapsuleSetup from "./pages/CapsuleSetup.jsx";
 import TxnTest from "./pages/TxnTest.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
-import BankLoginModal from "./components/BankLoginModal1.jsx"; 
+import BankLoginModal from "./components/BankLoginModal1.jsx";
 
 export default function App() {
   const nav = useNavigate();
@@ -103,7 +103,6 @@ export default function App() {
         isOpen={showBankModal}
         onClose={() => setShowBankModal(false)}
         onSuccess={() => {
-          // Refresh user data after successful bank link
           const updatedUser = JSON.parse(localStorage.getItem('user'));
           setUser(updatedUser);
           setShowBankModal(false);
