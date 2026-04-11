@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../lib/api.js";
+import { ethers } from "ethers";
 
 export default function AuditLog({ user }) {
   const [viewMode, setViewMode] = useState("user"); // "user" or "admin"
+  const [meta, setMeta] = useState(null);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [msg, setMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [exportFormat, setExportFormat] = useState("csv");
-
+  
   // Filter states (admin only)
   const [filters, setFilters] = useState({
     eventType: "all",
@@ -22,168 +24,284 @@ export default function AuditLog({ user }) {
 
   if (!user) return <div className="card">🔐 Please login first.</div>;
 
-  // Apply filters whenever events or filters change
+  useEffect(() => {
+    (async () => {
+      try {
+        const m = await api.get("/api/audit/meta");
+        setMeta(m.data);
+      } catch (e) {
+        console.error("Failed to load audit meta:", e);
+      }
+    })();
+  }, []);
+
+  // Apply filters whenever events or filters change (admin only)
   useEffect(() => {
     let filtered = [...events];
-
+    
     if (filters.eventType !== "all") {
       filtered = filtered.filter(e => e.type === filters.eventType);
     }
-
+    
     if (filters.source !== "all") {
       filtered = filtered.filter(e => e.source === filters.source);
     }
-
+    
     if (filters.status !== "all") {
       filtered = filtered.filter(e => {
         if (e.type === "TxnDecision") {
-          if (filters.status === "approved") return e.approved === true;
-          if (filters.status === "denied") return e.approved === false;
+          const args = formatArgs(e.args);
+          if (filters.status === "approved") return args.approved === true;
+          if (filters.status === "denied") return args.approved === false;
         }
         return true;
       });
     }
-
+    
     if (filters.searchText) {
       const searchLower = filters.searchText.toLowerCase();
       filtered = filtered.filter(e => {
-        const argsStr = JSON.stringify(e).toLowerCase();
-        return argsStr.includes(searchLower) ||
-          e.type.toLowerCase().includes(searchLower) ||
-          (e.documentId && e.documentId.toLowerCase().includes(searchLower));
+        const argsStr = JSON.stringify(formatArgs(e.args)).toLowerCase();
+        return argsStr.includes(searchLower) || 
+               e.type.toLowerCase().includes(searchLower) ||
+               (e.transactionHash && e.transactionHash.toLowerCase().includes(searchLower));
       });
     }
-
+    
     if (filters.dateRange !== "all") {
       const now = Date.now();
       let cutoff = 0;
       if (filters.dateRange === "today") cutoff = now - 24 * 60 * 60 * 1000;
       if (filters.dateRange === "week") cutoff = now - 7 * 24 * 60 * 60 * 1000;
       if (filters.dateRange === "month") cutoff = now - 30 * 24 * 60 * 60 * 1000;
-
+      
       filtered = filtered.filter(e => {
-        const timestamp = e.timestamp;
+        const args = formatArgs(e.args);
+        const timestamp = args.timestamp || (e.blockNumber ? e.blockNumber * 1000 : null);
         return timestamp && timestamp >= cutoff;
       });
     }
-
+    
     if (filters.startDate && filters.endDate) {
       const start = new Date(filters.startDate).getTime();
       const end = new Date(filters.endDate).getTime();
       filtered = filtered.filter(e => {
-        const timestamp = e.timestamp;
+        const args = formatArgs(e.args);
+        const timestamp = args.timestamp || (e.blockNumber ? e.blockNumber * 1000 : null);
         return timestamp && timestamp >= start && timestamp <= end;
       });
     }
-
+    
     setFilteredEvents(filtered);
   }, [events, filters]);
 
-  // Load Dash Audit Logs
-  async function loadDashAuditLogs() {
+  const formatArgs = (args) => {
+    if (!args) return {};
+    if (typeof args.toObject === 'function') {
+      return args.toObject();
+    }
+    const result = {};
+    for (let key in args) {
+      if (typeof args[key] !== 'function') {
+        result[key] = args[key]?.toString() || args[key];
+      }
+    }
+    return result;
+  };
+
+  // Load Recent Off-Chain Decisions
+  async function loadRecentDecisions() {
     setMsg("");
     setIsLoading(true);
-    setEvents([]);
-
-    try {
-      const response = await api.get("/api/audit/txns");
-      const txns = response.data.txns || [];
-
-      const formattedEvents = txns.map(txn => ({
-        type: "TxnDecision",
-        source: "dash",
-        merchant: txn.merchant,
-        mcc: txn.mcc,
-        amount: txn.amount,
-        approved: txn.approved,
-        riskTier: txn.riskTier,
-        reason: txn.reason,
-        timestamp: txn.ts,
-        documentId: txn.documentId,
-        userAddress: user.userAddress
-      }));
-
-      setEvents(formattedEvents);
-      setMsg(`✅ Loaded ${formattedEvents.length} audit logs from Dash`);
-    } catch (err) {
-      console.error("Failed to load audit logs:", err);
-      setMsg("❌ Failed to load audit logs from Dash");
-    } finally {
-      setIsLoading(false);
-      setTimeout(() => setMsg(""), 3000);
-    }
+    
+    const recentDecisions = [
+      {
+        merchant: "MyMart",
+        type: "GROCERY",
+        amount: "100",
+        tier: "MEDIUM",
+        status: "APPROVED",
+        reason: "APPROVED",
+        timestamp: Date.now() - 3600000
+      },
+      {
+        merchant: "Walmart",
+        type: "GROCERY",
+        amount: "45",
+        tier: "LOW",
+        status: "APPROVED",
+        reason: "APPROVED",
+        timestamp: Date.now() - 7200000
+      },
+      {
+        merchant: "Restaurant",
+        type: "RESTAURANT",
+        amount: "35",
+        tier: "MEDIUM",
+        status: "DENIED",
+        reason: "MCC_NOT_ALLOWED",
+        timestamp: Date.now() - 10800000
+      },
+      {
+        merchant: "Netflix",
+        type: "ENTERTAINMENT",
+        amount: "15",
+        tier: "HIGH",
+        status: "DENIED",
+        reason: "MCC_NOT_ALLOWED",
+        timestamp: Date.now() - 14400000
+      },
+      {
+        merchant: "Shell",
+        type: "FUEL",
+        amount: "60",
+        tier: "LOW",
+        status: "APPROVED",
+        reason: "APPROVED",
+        timestamp: Date.now() - 18000000
+      }
+    ];
+    
+    const formattedEvents = recentDecisions.map((decision, index) => ({
+      type: "TxnDecision",
+      args: {
+        merchant: decision.merchant,
+        merchantType: decision.type,
+        amount: decision.amount,
+        riskTier: decision.tier,
+        decision: decision.status,
+        reason: decision.reason,
+        timestamp: decision.timestamp,
+        approved: decision.status === "APPROVED"
+      },
+      blockNumber: 200000 + index,
+      transactionHash: `0x_offchain_${Date.now()}_${index}`,
+      blockHash: `0x_offchain_hash_${index}`,
+      logIndex: index,
+      source: "off-chain"
+    }));
+    
+    setEvents(formattedEvents);
+    setMsg(`✅ Loaded ${formattedEvents.length} recent off-chain decisions`);
+    setIsLoading(false);
+    
+    setTimeout(() => {
+      setMsg(prev => prev.includes("Loaded") ? "" : prev);
+    }, 3000);
   }
 
   // Load Mock Data
   async function loadMockData() {
     setMsg("");
     setIsLoading(true);
-
+    
     const mockEvents = [
       {
         type: "CapsuleCreated",
-        source: "demo",
-        capsuleLimit: 1000,
-        capsuleType: "REGULAR",
-        userAddress: user.userAddress,
-        timestamp: Date.now() - 3600000,
-        documentId: "mock_doc_1"
+        args: { user: "0x1234...5678", capsuleId: "1", amount: "80", merchantType: "grocery", feeRate: "0.03", expiry: "7 days" },
+        blockNumber: 12345,
+        transactionHash: "0xabc123def456...",
+        blockHash: "0x789ghi012jkl...",
+        logIndex: 0,
+        source: "demo"
       },
       {
         type: "TxnDecision",
-        source: "demo",
-        merchant: "Supermarket",
-        mcc: "GROCERY",
-        amount: "25.50",
-        approved: true,
-        riskTier: "LOW",
-        timestamp: Date.now() - 7200000,
-        documentId: "mock_doc_2",
-        userAddress: user.userAddress
+        args: { user: "0x1234...5678", merchant: "Supermarket", amount: "25.50", approved: true, riskTier: "LOW", timestamp: Date.now() - 3600000 },
+        blockNumber: 12346,
+        transactionHash: "0xdef456ghi789...",
+        blockHash: "0x345mno678pqr...",
+        logIndex: 1,
+        source: "demo"
       },
       {
         type: "TxnDecision",
-        source: "demo",
-        merchant: "Entertainment",
-        mcc: "ENTERTAINMENT",
-        amount: "50.00",
-        approved: false,
-        riskTier: "HIGH",
-        reason: "Blocked by capsule rules",
-        timestamp: Date.now() - 10800000,
-        documentId: "mock_doc_3",
-        userAddress: user.userAddress
+        args: { user: "0x1234...5678", merchant: "Entertainment", amount: "50.00", approved: false, riskTier: "HIGH", reason: "Blocked by capsule rules", timestamp: Date.now() - 7200000 },
+        blockNumber: 12347,
+        transactionHash: "0xghi789jkl012...",
+        blockHash: "0x901stu234vwx...",
+        logIndex: 2,
+        source: "demo"
       },
       {
         type: "CapsuleCreated",
-        source: "demo",
-        capsuleLimit: 500,
-        capsuleType: "SMALL",
-        userAddress: user.userAddress,
-        timestamp: Date.now() - 14400000,
-        documentId: "mock_doc_4"
+        args: { user: "0x1234...5678", capsuleId: "2", amount: "50", merchantType: "transport", feeRate: "0.05", expiry: "5 days" },
+        blockNumber: 12348,
+        transactionHash: "0xjkl012mno345...",
+        blockHash: "0x678yza901bcd...",
+        logIndex: 3,
+        source: "demo"
       },
       {
         type: "TxnDecision",
-        source: "demo",
-        merchant: "Restaurant",
-        mcc: "RESTAURANT",
-        amount: "35.00",
-        approved: true,
-        riskTier: "MEDIUM",
-        timestamp: Date.now() - 18000000,
-        documentId: "mock_doc_5",
-        userAddress: user.userAddress
+        args: { user: "0x1234...5678", merchant: "Restaurant", amount: "35.00", approved: true, riskTier: "MEDIUM", timestamp: Date.now() - 10800000 },
+        blockNumber: 12349,
+        transactionHash: "0xmno345pqr678...",
+        blockHash: "0x901bcd234efg...",
+        logIndex: 4,
+        source: "demo"
       }
     ];
-
+    
     setEvents(mockEvents);
-    setMsg(`✅ Loaded ${mockEvents.length} mock events for testing`);
+    setMsg("✅ Loaded 5 mock events for testing filters");
     setIsLoading(false);
-
+    
     setTimeout(() => {
       setMsg(prev => prev.includes("Loaded") ? "" : prev);
     }, 3000);
+  }
+
+  // Load On-Chain Logs
+  async function loadOnChain() {
+    setMsg("");
+    setEvents([]);
+    setIsLoading(true);
+
+    if (!meta?.enabled) {
+      setMsg("⚠️ Chain logs disabled. Please enable blockchain connection.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_CHAIN_RPC_URL || "http://127.0.0.1:8545");
+      const contract = new ethers.Contract(meta.address, meta.abi, provider);
+
+      const userAddr = user.userAddress;
+
+      const capsuleLogs = await contract.queryFilter(contract.filters.CapsuleCreated(userAddr));
+      const txnLogs = await contract.queryFilter(contract.filters.TxnDecision(userAddr));
+
+      const formatted = [
+        ...capsuleLogs.map(l => ({ 
+          type: "CapsuleCreated", 
+          args: l.args, 
+          blockNumber: l.blockNumber,
+          transactionHash: l.transactionHash,
+          blockHash: l.blockHash,
+          logIndex: l.logIndex,
+          source: "on-chain"
+        })),
+        ...txnLogs.map(l => ({ 
+          type: "TxnDecision", 
+          args: l.args, 
+          blockNumber: l.blockNumber,
+          transactionHash: l.transactionHash,
+          blockHash: l.blockHash,
+          logIndex: l.logIndex,
+          source: "on-chain"
+        }))
+      ].sort((a,b)=> (b.blockNumber - a.blockNumber));
+
+      setEvents(formatted);
+      setMsg(`✅ Loaded ${formatted.length} on-chain events`);
+    } catch (e) {
+      console.error(e);
+      setMsg("❌ Failed to read chain logs.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   // Reset all filters
@@ -200,61 +318,65 @@ export default function AuditLog({ user }) {
   }
 
   // Helper function to flatten args for CSV
-  const flattenArgsForCSV = (event) => {
+  const flattenArgsForCSV = (args, eventType) => {
     const flat = {};
-
-    if (event.type === "TxnDecision") {
-      flat.merchant = event.merchant || "";
-      flat.mcc = event.mcc || "";
-      flat.amount = event.amount || "";
-      flat.status = event.approved ? "APPROVED" : (event.approved === false ? "DENIED" : "");
-      flat.riskTier = event.riskTier || "";
-      flat.timestamp = event.timestamp ? new Date(event.timestamp).toLocaleString() : "";
-      flat.user = event.userAddress || "";
-      flat.reason = event.reason || "";
+    
+    if (eventType === "TxnDecision") {
+      flat.merchant = args.merchant || args.merchantType || "";
+      flat.mcc = args.mcc || args.merchantType || "";
+      flat.amount = args.amount || "";
+      flat.status = args.approved ? "APPROVED" : (args.approved === false ? "DENIED" : args.decision || "");
+      flat.riskTier = args.riskTier || args.tier || "";
+      flat.reason = args.reason || "";
+      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
+      flat.user = args.user || "";
+    } 
+    else if (eventType === "CapsuleCreated") {
+      flat.capsuleId = args.capsuleId || "";
+      flat.amount = args.amount || "";
+      flat.merchantType = args.merchantType || "";
+      flat.feeRate = args.feeRate || "";
+      flat.expiry = args.expiry || "";
+      flat.user = args.user || "";
+      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
     }
-    else if (event.type === "CapsuleCreated") {
-      flat.capsuleId = event.capsuleId || event.documentId || "";
-      flat.amount = event.capsuleLimit || "";
-      flat.capsuleType = event.capsuleType || "";
-      flat.user = event.userAddress || "";
-      flat.timestamp = event.timestamp ? new Date(event.timestamp).toLocaleString() : "";
-    }
-
+    
     return flat;
   };
 
   const convertToCSV = (eventsData) => {
     if (eventsData.length === 0) return "";
-
+    
     const headers = [
-      "Source", "Event Type", "Document ID", "Timestamp",
-      "Merchant", "MCC", "Amount", "Status", "Risk Tier", "Reason", "User Address"
+      "Source", "Event Type", "Block Number", "Transaction Hash",
+      "Timestamp", "Merchant", "MCC", "Amount", "Status", "Risk Tier", "Reason"
     ];
-
+    
     const rows = eventsData.map(event => {
-      const flatArgs = flattenArgsForCSV(event);
-
+      const args = formatArgs(event.args);
+      const flatArgs = flattenArgsForCSV(args, event.type);
+      const timestamp = flatArgs.timestamp || (event.blockNumber ? new Date(event.blockNumber * 1000).toLocaleString() : "");
+      
       return [
         event.source || "unknown",
         event.type === "TxnDecision" ? "Transaction" : "Capsule",
-        event.documentId || "",
-        flatArgs.timestamp || "",
+        event.blockNumber || "",
+        event.transactionHash ? event.transactionHash.substring(0, 20) + "..." : "",
+        timestamp,
         flatArgs.merchant || "",
         flatArgs.mcc || "",
         flatArgs.amount || "",
         flatArgs.status || "",
         flatArgs.riskTier || "",
-        flatArgs.reason || "",
-        flatArgs.user || ""
+        flatArgs.reason || ""
       ];
     });
-
+    
     const csvContent = [
       headers.join(","),
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
-
+    
     return csvContent;
   };
 
@@ -262,19 +384,9 @@ export default function AuditLog({ user }) {
     return JSON.stringify(eventsData.map(event => ({
       source: event.source || "unknown",
       type: event.type,
-      documentId: event.documentId,
-      timestamp: event.timestamp,
-      ...(event.type === "TxnDecision" ? {
-        merchant: event.merchant,
-        mcc: event.mcc,
-        amount: event.amount,
-        approved: event.approved,
-        riskTier: event.riskTier,
-        reason: event.reason
-      } : {
-        capsuleLimit: event.capsuleLimit,
-        capsuleType: event.capsuleType
-      })
+      blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash,
+      args: formatArgs(event.args)
     })), null, 2);
   };
 
@@ -298,7 +410,7 @@ export default function AuditLog({ user }) {
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
-
+    
     if (exportFormat === "csv") {
       const csvData = convertToCSV(filteredEvents);
       downloadFile(csvData, `audit_log_${username}_${timestamp}.csv`, "text/csv");
@@ -308,13 +420,14 @@ export default function AuditLog({ user }) {
       downloadFile(jsonData, `audit_log_${username}_${timestamp}.json`, "application/json");
       setMsg(`🔧 Exported ${filteredEvents.length} events to JSON`);
     }
-
+    
     setTimeout(() => setMsg(""), 3000);
   };
 
   const getSourceBadge = (source) => {
-    switch (source) {
-      case 'dash': return { color: '#4caf50', label: '⛓️ Dash' };
+    switch(source) {
+      case 'on-chain': return { color: '#4caf50', label: '⛓️ On-Chain' };
+      case 'off-chain': return { color: '#ff9800', label: '📋 Off-Chain' };
       case 'demo': return { color: '#2196f3', label: '🧪 Demo' };
       default: return { color: '#999', label: '❓ Unknown' };
     }
@@ -356,7 +469,7 @@ export default function AuditLog({ user }) {
 
         <div style={{ marginBottom: "20px" }}>
           <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
-            <button className="btn-primary" onClick={loadDashAuditLogs} disabled={isLoading}>
+            <button className="btn-primary" onClick={loadRecentDecisions} disabled={isLoading}>
               📋 Load My Recent Transactions
             </button>
             <button className="btn-secondary" onClick={loadMockData} disabled={isLoading}>
@@ -368,7 +481,7 @@ export default function AuditLog({ user }) {
 
           {events.length === 0 ? (
             <div className="small" style={{ textAlign: "center", padding: "40px", background: "#f5f5f5", borderRadius: "8px" }}>
-              💡 No transactions yet. Click "Load My Recent Transactions" above.
+              💡 No transactions yet. Go to Transaction Test to make some.
             </div>
           ) : (
             <div style={{ maxHeight: "500px", overflowY: "auto" }}>
@@ -376,9 +489,10 @@ export default function AuditLog({ user }) {
                 .filter(e => e.type === "TxnDecision")
                 .slice(0, 20)
                 .map((e, i) => {
-                  const isApproved = e.approved;
-                  const date = e.timestamp ? new Date(e.timestamp).toLocaleString() : "Recent";
-
+                  const args = formatArgs(e.args);
+                  const isApproved = args.approved;
+                  const date = args.timestamp ? new Date(args.timestamp).toLocaleString() : "Recent";
+                  
                   return (
                     <div key={i} style={{
                       marginBottom: "10px",
@@ -392,16 +506,16 @@ export default function AuditLog({ user }) {
                           <span style={{ fontWeight: "bold" }}>
                             {isApproved ? "✅ Approved" : "❌ Declined"}
                           </span>
-                          <span style={{ marginLeft: "10px" }}>{e.merchant || "Unknown"}</span>
-                          <span style={{ marginLeft: "10px", fontSize: "12px", color: "#666" }}>{e.mcc}</span>
+                          <span style={{ marginLeft: "10px" }}>{args.merchant || "Unknown"}</span>
+                          <span style={{ marginLeft: "10px", fontSize: "12px", color: "#666" }}>{args.mcc || args.merchantType}</span>
                         </div>
                         <div>
-                          <b>${e.amount}</b>
+                          <b>${args.amount}</b>
                         </div>
                       </div>
                       <div style={{ fontSize: "11px", marginTop: "5px", color: "#666" }}>
                         {date}
-                        {!isApproved && e.reason && <span> • {e.reason}</span>}
+                        {!isApproved && args.reason && <span> • {args.reason}</span>}
                       </div>
                     </div>
                   );
@@ -411,9 +525,9 @@ export default function AuditLog({ user }) {
         </div>
 
         <div className="small" style={{ textAlign: "center", padding: "12px", background: "#e3f2fd", borderRadius: "8px" }}>
-          💡 <strong>Tip:</strong> Click "Bank Admin View" to see the full compliance dashboard with immutable Dash audit logs.
+          💡 <strong>Tip:</strong> Click "Bank Admin View" to see the full compliance dashboard with immutable blockchain audit logs.
         </div>
-
+        
         <style>{`
           .btn-primary {
             background: #4caf50;
@@ -430,13 +544,6 @@ export default function AuditLog({ user }) {
             padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
-          }
-          .card {
-            margin-bottom: 15px;
-          }
-          .small {
-            font-size: 12px;
-            color: #666;
           }
         `}</style>
       </div>
@@ -459,7 +566,7 @@ export default function AuditLog({ user }) {
         <div>
           <h3 style={{ margin: 0 }}>🏦 Compliance Dashboard</h3>
           <div className="small">
-            🔗 Audit logs stored immutably on Dash Platform
+            🔄 Off-chain makes decisions; ⛓️ on-chain stores immutable logs.
           </div>
         </div>
         <button
@@ -481,8 +588,11 @@ export default function AuditLog({ user }) {
       {/* Data Source Buttons */}
       <div style={{ marginBottom: 15 }}>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button className="btn-dash" onClick={loadDashAuditLogs} disabled={isLoading}>
-            {isLoading ? "⏳ Loading..." : "⛓️ Load Dash Audit Logs"}
+          <button className="btn-onchain" onClick={loadOnChain} disabled={isLoading}>
+            {isLoading ? "⏳ Loading..." : "⛓️ Load Blockchain Logs"}
+          </button>
+          <button className="btn-offchain" onClick={loadRecentDecisions} disabled={isLoading}>
+            {isLoading ? "⏳ Loading..." : "📋 Load Recent Decisions"}
           </button>
           <button className="btn-demo" onClick={loadMockData} disabled={isLoading}>
             {isLoading ? "⏳ Loading..." : "🧪 Load Demo Data"}
@@ -490,8 +600,8 @@ export default function AuditLog({ user }) {
         </div>
 
         {/* Filter Section */}
-        <div style={{
-          borderTop: "1px solid #e0e0e0",
+        <div style={{ 
+          borderTop: "1px solid #e0e0e0", 
           paddingTop: 15,
           marginTop: 15
         }}>
@@ -501,41 +611,42 @@ export default function AuditLog({ user }) {
               Reset All
             </button>
           </div>
-
+          
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
-            <select
-              value={filters.eventType}
-              onChange={(e) => setFilters({ ...filters, eventType: e.target.value })}
+            <select 
+              value={filters.eventType} 
+              onChange={(e) => setFilters({...filters, eventType: e.target.value})}
               className="filter-select"
             >
               <option value="all">All Events</option>
               <option value="CapsuleCreated">📦 Capsule Created</option>
               <option value="TxnDecision">💳 Transaction</option>
             </select>
-
-            <select
-              value={filters.source}
-              onChange={(e) => setFilters({ ...filters, source: e.target.value })}
+            
+            <select 
+              value={filters.source} 
+              onChange={(e) => setFilters({...filters, source: e.target.value})}
               className="filter-select"
             >
               <option value="all">All Sources</option>
-              <option value="dash">⛓️ Dash</option>
+              <option value="on-chain">⛓️ On-Chain</option>
+              <option value="off-chain">📋 Off-Chain</option>
               <option value="demo">🧪 Demo</option>
             </select>
-
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            
+            <select 
+              value={filters.status} 
+              onChange={(e) => setFilters({...filters, status: e.target.value})}
               className="filter-select"
             >
               <option value="all">All Decisions</option>
               <option value="approved">✅ Approved</option>
               <option value="denied">❌ Denied</option>
             </select>
-
-            <select
-              value={filters.dateRange}
-              onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
+            
+            <select 
+              value={filters.dateRange} 
+              onChange={(e) => setFilters({...filters, dateRange: e.target.value})}
               className="filter-select"
             >
               <option value="all">All Time</option>
@@ -544,44 +655,25 @@ export default function AuditLog({ user }) {
               <option value="month">Last 30 Days</option>
             </select>
           </div>
-
+          
           <div style={{ marginTop: "10px" }}>
-            <input
-              type="text"
-              placeholder="🔎 Search in merchant, amount, document ID..."
+            <input 
+              type="text" 
+              placeholder="🔎 Search in arguments, transaction hash..." 
               value={filters.searchText}
-              onChange={(e) => setFilters({ ...filters, searchText: e.target.value })}
+              onChange={(e) => setFilters({...filters, searchText: e.target.value})}
               className="filter-input"
               style={{ width: "100%" }}
             />
           </div>
-
-          {/* Date range inputs */}
-          <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="filter-input"
-              placeholder="Start Date"
-            />
-            <span className="small">to</span>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="filter-input"
-              placeholder="End Date"
-            />
-          </div>
         </div>
-
+        
         {/* Export Controls */}
         {events.length > 0 && (
-          <div style={{
-            display: "flex",
-            gap: "12px",
-            alignItems: "center",
+          <div style={{ 
+            display: "flex", 
+            gap: "12px", 
+            alignItems: "center", 
             flexWrap: "wrap",
             paddingTop: 12,
             marginTop: 12,
@@ -589,8 +681,8 @@ export default function AuditLog({ user }) {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span className="small">📤 Export as:</span>
-              <select
-                value={exportFormat}
+              <select 
+                value={exportFormat} 
                 onChange={(e) => setExportFormat(e.target.value)}
                 className="filter-select"
                 style={{ width: "auto" }}
@@ -604,12 +696,12 @@ export default function AuditLog({ user }) {
             </button>
           </div>
         )}
-
+        
         {msg && (
-          <div className="small" style={{
-            marginTop: 12,
-            padding: "10px",
-            background: msg.includes("❌") || msg.includes("⚠️") ? "#fff3e0" : "#e8f5e9",
+          <div className="small" style={{ 
+            marginTop: 12, 
+            padding: "10px", 
+            background: msg.includes("❌") || msg.includes("⚠️") ? "#fff3e0" : "#e8f5e9", 
             borderRadius: "6px"
           }}>
             {msg}
@@ -635,25 +727,26 @@ export default function AuditLog({ user }) {
         <div style={{ maxHeight: "500px", overflowY: "auto" }}>
           {filteredEvents.map((e, i) => {
             const sourceBadge = getSourceBadge(e.source);
-            const isApproved = e.approved;
-
+            const args = formatArgs(e.args);
+            const isApproved = args.approved;
+            
             return (
-              <div key={i} style={{
-                marginBottom: "10px",
+              <div key={i} style={{ 
+                marginBottom: "10px", 
                 padding: "12px",
                 border: "1px solid #e0e0e0",
                 borderRadius: "8px",
-                background: e.type === "TxnDecision" && isApproved !== undefined
+                background: e.type === "TxnDecision" && isApproved !== undefined 
                   ? (isApproved ? "#e8f5e9" : "#ffebee")
                   : "white"
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
                   <div>
-                    <span style={{
-                      display: "inline-block",
-                      padding: "2px 8px",
-                      borderRadius: "4px",
-                      fontSize: "10px",
+                    <span style={{ 
+                      display: "inline-block", 
+                      padding: "2px 8px", 
+                      borderRadius: "4px", 
+                      fontSize: "10px", 
                       fontWeight: "bold",
                       backgroundColor: sourceBadge.color,
                       color: "white",
@@ -669,29 +762,25 @@ export default function AuditLog({ user }) {
                         {isApproved ? "✅ APPROVED" : "❌ DENIED"}
                       </span>
                     )}
+                    <span className="small"> (Block #{e.blockNumber})</span>
                   </div>
-                  {e.documentId && (
+                  {e.transactionHash && e.source === "on-chain" && (
                     <div className="small" style={{ fontFamily: "monospace", fontSize: "10px" }}>
-                      📄 Doc: {e.documentId.slice(0, 10)}...
+                      🔗 TX: {e.transactionHash.slice(0, 10)}...{e.transactionHash.slice(-8)}
                     </div>
                   )}
                 </div>
                 <div className="small" style={{ marginTop: "5px", wordBreak: "break-all" }}>
-                  {e.type === "TxnDecision" ? (
-                    <>Merchant: {e.merchant} | MCC: {e.mcc} | Amount: ${e.amount} | Risk: {e.riskTier}</>
-                  ) : (
-                    <>Capsule Limit: ${e.capsuleLimit} | Type: {e.capsuleType}</>
-                  )}
-                  {e.timestamp && <div style={{ marginTop: "5px", color: "#666" }}>🕐 {new Date(e.timestamp).toLocaleString()}</div>}
+                  {JSON.stringify(args, null, 2)}
                 </div>
               </div>
             );
           })}
         </div>
       )}
-
+      
       <style>{`
-        .btn-dash, .btn-demo {
+        .btn-onchain, .btn-offchain, .btn-demo {
           padding: 8px 18px;
           border-radius: 6px;
           font-size: 14px;
@@ -699,7 +788,8 @@ export default function AuditLog({ user }) {
           border: none;
           color: white;
         }
-        .btn-dash { background: #4caf50; }
+        .btn-onchain { background: #4caf50; }
+        .btn-offchain { background: #ff9800; }
         .btn-demo { background: #2196f3; }
         .btn-primary-small {
           background: #4caf50;
