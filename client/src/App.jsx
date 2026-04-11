@@ -72,6 +72,7 @@ export default function App() {
 
       <div className="nav">
         <Link className={`badge ${isActive('/') ? 'active' : ''}`} to="/">Login</Link>
+        <Link className={`badge ${isActive('/dashboard') ? 'active' : ''}`} to="/dashboard">Dashboard</Link>
         <Link className={`badge ${isActive('/risk') ? 'active' : ''}`} to="/risk">Risk Simulation</Link>
         <Link className={`badge ${isActive('/capsule') ? 'active' : ''}`} to="/capsule">Capsule Setup</Link>
         <Link className={`badge ${isActive('/txn') ? 'active' : ''}`} to="/txn">Transaction Test</Link>

@@ -423,6 +423,7 @@ export default function CapsuleSetup({ user }) {
           padding: 10px 20px;
           border-radius: 6px;
           cursor: pointer;
+          font-size: 14px;
         }
         .btn-primary:hover {
           transform: translateY(-2px);
