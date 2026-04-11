@@ -160,7 +160,8 @@ txnRouter.post("/test", requireAuth, async (req, res) => {
     approved,
     riskTier: risk.tier,
     reason,
-    ts: Date.now()
+    ts: Date.now(),
+    timestamp: new Date().toISOString()
   };
   db.txns.push(record);
 
