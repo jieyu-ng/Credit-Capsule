@@ -271,7 +271,8 @@ export default function RiskSim({ user }) {
         <button className="btn-secondary" onClick={runScenarios} disabled={isRunning}>
           📊 Compare Scenarios
         </button>
-        <button className="btn-secondary" onClick={() => setShowSensitivity(!showSensitivity)}>
+        <button className={showSensitivity?"btn-sensitivity-hide":"btn-sensitivity-active"} 
+          onClick={() => setShowSensitivity(!showSensitivity)}>
           🎛️ {showSensitivity ? "Hide" : "Show"} Sensitivity
         </button>
       </div>
@@ -370,29 +371,73 @@ export default function RiskSim({ user }) {
       
       <style jsx>{`
         .btn-primary {
-          background: linear-gradient(135deg, #4caf50, #45a049);
+          background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
           color: white;
           border: none;
           padding: 10px 20px;
           border-radius: 6px;
           cursor: pointer;
+        }
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
         }
         .btn-secondary {
-          background: #666;
+          background: linear-gradient(135deg, #f89f1a, #ff9800, #ffaa00);
           color: white;
           border: none;
           padding: 10px 20px;
           border-radius: 6px;
           cursor: pointer;
         }
+        .btn-secondary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(132, 94, 27, 0.47);
+        }
+        .btn-sensitivity-active {
+          background: linear-gradient(135deg, #f89f1a, #ff9800, #ffaa00);
+          color: white;
+          border: none;
+          padding: 8px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+         }
+        .btn-sensitivity-active:hover {
+          background: linear-gradient(135deg, #f89f1a, #ff9800, #ffaa00);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(239, 173, 68, 0.4);
+        }
+        .btn-sensitivity-hide{
+          background: transparent;
+          color: #ff9800;
+          border: 2px solid #ff9800;
+          padding: 8px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+        }
+        .btn-sensitivity-hide:hover {
+          background: rgba(239, 173, 68, 0.4);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(235, 155, 26, 0.4);
+        }
         .btn-small {
-          background: #2196f3;
+          background: linear-gradient(135deg, #1bcbee, #2196f3, #205ef0);
           color: white;
           border: none;
           padding: 6px 12px;
           border-radius: 4px;
           cursor: pointer;
           font-size: 12px;
+        }
+        .btn-small:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 50, 132, 0.47);
         }
         .input {
           width: 100%;

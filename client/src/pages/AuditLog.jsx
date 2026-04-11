@@ -820,13 +820,17 @@ export default function AuditLog({ user }) {
       
       <style jsx>{`
         .btn-primary {
-          background: linear-gradient(135deg, #4caf50, #45a049);
+          background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
           color: white;
           border: none;
           padding: 8px 18px;
           border-radius: 6px;
           cursor: pointer;
           font-size: 14px;
+        }
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
         }
         .btn {
           cursor: pointer;
@@ -844,9 +848,21 @@ export default function AuditLog({ user }) {
           border: none;
           color: white;
         }
-        .btn-onchain { background: #4caf50; }
-        .btn-offchain { background: #ff9800; }
-        .btn-demo { background: #2196f3; }
+        .btn-onchain { background: linear-gradient(135deg, #53cc57, #4caf50, #09c313); }
+        .btn-onchain:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
+        }
+        .btn-offchain { background: linear-gradient(135deg, #f89f1a, #ff9800, #ffaa00); }
+        .btn-offchain:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(132, 94, 27, 0.47);
+        }
+        .btn-demo { background: linear-gradient(135deg, #2196f3, #1d75bc, #212ff3); }
+        .btn-demo:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 97, 132, 0.47);
+        }
         .btn-small {
           background: #666;
           color: white;
@@ -854,6 +870,10 @@ export default function AuditLog({ user }) {
           border-radius: 4px;
           cursor: pointer;
           font-size: 12px;
+        }
+        .btn-small:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 8px rgba(80, 119, 138, 0.47);}
         }
         .filter-select, .filter-input {
           padding: 8px 12px;

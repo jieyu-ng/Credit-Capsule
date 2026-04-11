@@ -114,7 +114,7 @@ export default function CapsuleSetup({ user }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15 }}>
           <h3 style={{ margin: 0 }}>📚 Capsule Templates</h3>
           <button 
-            className="btn-secondary" 
+            className={showComparison?"btn-compare-hide":"btn-compare-active"}
             onClick={() => setShowComparison(!showComparison)}
           >
             {showComparison ? "Hide Comparison" : "Compare Templates"}
@@ -261,20 +261,60 @@ export default function CapsuleSetup({ user }) {
       
       <style jsx>{`
         .btn-primary {
-          background: linear-gradient(135deg, #4caf50, #45a049);
+          background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
           color: white;
           border: none;
           padding: 10px 20px;
           border-radius: 6px;
           cursor: pointer;
         }
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
+        }
         .btn-secondary {
-          background: #666;
+          background: linear-gradient(135deg, #ef4444, #dc2626);;
           color: white;
           border: none;
           padding: 10px 20px;
           border-radius: 6px;
           cursor: pointer;
+        }
+        .btn-secondary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px #cb4c4c;
+        }
+        .btn-compare-active {
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: white;
+          border: none;
+          padding: 8px 20px;
+          border-radius: 25px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+         }
+        .btn-compare-active:hover {
+          background: linear-gradient(135deg, #dc2626, #b91c1c);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+        .btn-compare-hide{
+          background: transparent;
+          color: #ef4444;
+          border: 2px solid #ef4444;
+          padding: 8px 20px;
+          border-radius: 25px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+        }
+        .btn-compare-hide:hover {
+          background: rgba(239, 68, 68, 0.1);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
         }
         .template-card {
           transition: all 0.2s ease;
