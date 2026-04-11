@@ -42,10 +42,7 @@ function ensureDefaultCapsule(userId, userApprovedLimit = 500) {
     const today = new Date().toISOString().slice(0, 10);
     cap = {
       rules: {
-        allowedMcc: [
-          "GROCERY", "RESTAURANT", "TRANSPORT", "FUEL", 
-          "EDUCATION", "MEDICAL", "SHOPPING", "UTILITIES"
-        ],
+        allowedMcc: ["ALL"],
         maxTransaction: 200,
         dailyCap: 300
       },
@@ -120,17 +117,20 @@ txnRouter.post("/test", requireAuth, async (req, res) => {
   const { merchant, mcc, amount } = parsed.data;
   const rules = cap.rules;
   
-  // Case-insensitive MCC check
-  const normalizedMcc = mcc.toUpperCase();
-  const allowedMccUpper = rules.allowedMcc.map(m => m.toUpperCase());
-  
-  let approved = true;
-  let reason = "APPROVED";
-  let debugInfo = {};
+  // Case-insensitive MCC check with "ALL" wildcard support
+const normalizedMcc = mcc.toUpperCase();
+const allowedMccUpper = rules.allowedMcc.map(m => m.toUpperCase());
 
-  if (!allowedMccUpper.includes(normalizedMcc)) {
-    approved = false;
-    reason = `MCC_NOT_ALLOWED: "${mcc}" not in allowed list [${rules.allowedMcc.join(", ")}]`;
+let approved = true;
+let reason = "APPROVED";
+let debugInfo = {};
+
+// Check if "ALL" is in allowed list (wildcard - approve any MCC)
+const isWildcardAll = allowedMccUpper.includes("ALL");
+
+if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
+  approved = false;
+  reason = `MCC_NOT_ALLOWED: "${mcc}" not in allowed list [${rules.allowedMcc.join(", ")}]`;
   } else if (amount > rules.maxTransaction) {
     approved = false;
     reason = `EXCEEDS_MAX_TRANSACTION: $${amount} > $${rules.maxTransaction}`;
