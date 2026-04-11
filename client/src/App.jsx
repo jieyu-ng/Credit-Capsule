@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { setAuthToken } from "./lib/api.js";
 
+import BankLogin from "./pages/BankLogin1";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import RiskSim from "./pages/RiskSim.jsx";

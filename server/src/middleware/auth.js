@@ -151,6 +151,7 @@ export async function requireAuth(req, res, next) {
   return res.status(401).json({ error: "Authentication required" });
 }
 
+
 // Clean up expired sessions periodically
 setInterval(() => {
   const now = Date.now();

@@ -734,4 +734,4 @@ export default function AuditLog({ user }) {
       `}</style>
     </div>
   );
-}
+} 

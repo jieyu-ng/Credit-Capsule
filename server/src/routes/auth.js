@@ -76,4 +76,56 @@ authRouter.post("/login", async (req, res) => {
       token,
       user: { id: user.id, email: user.email, approvedLimit: user.approvedLimit, userAddress: user.userAddress, identityId: user.identityId }
     });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Optional: Add a logout endpoint (stateless JWT, just for completeness)
+authRouter.post("/logout", requireAuth, (req, res) => {
+  // With JWT, logout is handled client-side by removing the token
+  return res.json({ ok: true, message: "Logged out successfully" });
+});
+
+// Get current user info
+authRouter.get("/me", requireAuth, (req, res) => {
+  const user = db.users.get(req.user.userId);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  return res.json({
+    id: user.id,
+    email: user.email,
+    approvedLimit: user.approvedLimit,
+    userAddress: user.userAddress,
+    identityId: user.identityId
   });
+});
+
+// Add bank linking endpoint
+authRouter.post("/link-bank", requireAuth, async (req, res) => {
+  try {
+    const { bankName, transactionData, accountType } = req.body;
+    const userId = req.user.userId;
+
+    const success = linkBank(userId, bankName, transactionData);
+
+    if (success) {
+      return res.json({ success: true, bankName, accountType });
+    } else {
+      return res.status(400).json({ error: "Failed to link bank account" });
+    }
+  } catch (error) {
+    console.error('Bank linking error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Add bank data endpoint
+authRouter.get("/bank-data", requireAuth, (req, res) => {
+  const userId = req.user.userId;
+  const bankData = getBankData(userId);
+  return res.json({ success: true, data: bankData });
+});

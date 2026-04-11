@@ -588,7 +588,7 @@ export default function CapsuleSetup({ user }) {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .btn-primary {
           background: linear-gradient(135deg, #4caf50, #45a049);
           color: white;

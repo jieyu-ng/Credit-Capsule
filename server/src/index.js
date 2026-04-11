@@ -9,6 +9,7 @@ import { riskRouter } from "./routes/risk.js";
 import { txnRouter } from "./routes/txn.js";
 import { auditRouter } from "./routes/audit.js";
 import { dashAuthRouter } from "./routes/dashAuth.js";
+import { userRouter } from "./routes/user.js";
 
 
 dotenv.config();
@@ -33,6 +34,7 @@ app.use("/api/capsule", capsuleRouter);
 app.use("/api/txn", txnRouter);
 app.use("/api/audit", auditRouter);
 app.use("/api/dash", dashAuthRouter);
+app.use("/api/user", userRouter);
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));

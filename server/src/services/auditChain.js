@@ -53,6 +53,15 @@ export async function logTxnDecision({ userAddress, merchant, mcc, amount, appro
   );
 }
 
+export async function logEmergencyVerified({ userAddress, emergencyType, timestamp }) {
+  if (!enabled) {
+    console.log('📝 Dash audit disabled');
+    return { ok: false, skipped: true };
+  }
+  console.log(`📝 Logging emergency verification for ${userAddress}: ${emergencyType}`);
+  return { ok: true, message: "Emergency logged" };
+}
+
 export function getAuditAbiAndAddress() {
   return {
     enabled,
