@@ -37,7 +37,7 @@ async function anchorToDash(identityId, rulesHash, rules) {
     const address = await account.getUnusedAddress();
     const miningAddress = address.address;
 
-    const typeLocator = 'creditCapsuleApp.creditCapsuleV2';
+    const typeLocator = 'creditCapsuleApp.creditCapsuleV3';
     console.log(`📝 Using type locator: ${typeLocator}`);
 
     const doc = await client.platform.documents.create(
