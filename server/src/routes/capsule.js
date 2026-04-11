@@ -66,7 +66,7 @@ async function anchorToDash(identityId, rulesHash, rules, capsuleType = "REGULAR
         rulesHash: rulesHash,
         rules: JSON.stringify(rules),
         capsuleType: capsuleType,
-        emergencyType: emergencyType || null,
+        emergencyType: emergencyType || "",
         createdAt: Date.now(),
       }
     );

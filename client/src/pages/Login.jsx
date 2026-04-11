@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { api, setAuthToken } from "../lib/api.js";
+import DashLogin from "../components/DashLogin.jsx";
 
 export default function Login({ onAuthed }) {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // 'login', 'register', 'dash'
   const [email, setEmail] = useState("demo@user.com");
   const [password, setPassword] = useState("password123");
   const [approvedLimit, setApprovedLimit] = useState(5000);
@@ -33,38 +34,68 @@ export default function Login({ onAuthed }) {
     }
   }
 
+  const handleDashSuccess = (user) => {
+    onAuthed?.(user);
+  };
+
+  if (mode === "dash") {
+    return (
+      <div className="card">
+        <DashLogin
+          onSuccess={handleDashSuccess}
+          onSwitchToEmail={() => setMode("login")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <div className="row">
-        <button className={`btn ${mode==="login"?"":"secondary"}`} onClick={()=>setMode("login")}>Login</button>
-        <button className={`btn ${mode==="register"?"":"secondary"}`} onClick={()=>setMode("register")}>Register</button>
+        <button className={`btn ${mode === "login" ? "" : "secondary"}`} onClick={() => setMode("login")}>
+          Login
+        </button>
+        <button className={`btn ${mode === "register" ? "" : "secondary"}`} onClick={() => setMode("register")}>
+          Register
+        </button>
+        <button className={`btn ${mode === "dash" ? "" : "secondary"}`} onClick={() => setMode("dash")}>
+          Dash Login
+        </button>
       </div>
 
       <hr />
 
-      <label>Email</label>
-      <input className="input" value={email} onChange={(e)=>setEmail(e.target.value)} />
-
-      <label>Password</label>
-      <input className="input" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} />
-
-      {mode === "register" && (
+      {mode === "login" && (
         <>
-          <label>Approved Limit (demo)</label>
-          <input className="input" type="number" value={approvedLimit} onChange={(e)=>setApprovedLimit(e.target.value)} />
+          <label>Email</label>
+          <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label>Password</label>
+          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <div style={{ marginTop: 12 }}>
+            <button className="btn" onClick={login}>Login</button>
+          </div>
         </>
       )}
 
-      <div style={{ marginTop: 12 }}>
-        {mode === "register"
-          ? <button className="btn" onClick={register}>Create account</button>
-          : <button className="btn" onClick={login}>Login</button>
-        }
-      </div>
+      {mode === "register" && (
+        <>
+          <label>Email</label>
+          <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label>Password</label>
+          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <label>Approved Limit (demo)</label>
+          <input className="input" type="number" value={approvedLimit} onChange={(e) => setApprovedLimit(e.target.value)} />
+          <div style={{ marginTop: 12 }}>
+            <button className="btn" onClick={register}>Create account</button>
+          </div>
+        </>
+      )}
 
       {msg && <div className="small" style={{ marginTop: 10 }}>{msg}</div>}
       <div className="small" style={{ marginTop: 10 }}>
-        Demo tip: register once, then login. Approved limit controls max capsule.
+        {mode === "dash"
+          ? "Login with your Dash wallet - no email or password needed!"
+          : "Demo tip: register once, then login. Approved limit controls max capsule."}
       </div>
     </div>
   );

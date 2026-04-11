@@ -1,58 +1,70 @@
-import { ethers } from "ethers";
+import { logCapsuleToDash, logTxnToDash, getUserAuditLogs } from './dashAudit.js';
 
-const enabled = (process.env.ENABLE_CHAIN_LOGS || "false").toLowerCase() === "true";
+const enabled = (process.env.ENABLE_DASH_AUDIT || "true").toLowerCase() === "true";
 
-const abi = [
-  "function logCapsuleCreated(address user, bytes32 rulesHash, uint256 limit) external",
-  "function logTxnDecision(address user, string merchant, string mcc, uint256 amount, bool approved, string riskTier) external",
-  "event CapsuleCreated(address indexed user, bytes32 indexed rulesHash, uint256 limit, uint256 timestamp)",
-  "event TxnDecision(address indexed user, string merchant, string mcc, uint256 amount, bool approved, string riskTier, uint256 timestamp)"
-];
+export async function logCapsuleCreated({ userAddress, rulesHash, limit, capsuleType, emergencyType }) {
+  if (!enabled) {
+    console.log('📝 Dash audit disabled');
+    return { ok: false, skipped: true };
+  }
 
-function getClient() {
-  if (!enabled) return null;
+  const { db } = await import('../storage/memoryDb.js');
+  const user = [...db.users.values()].find(u => u.userAddress === userAddress);
 
-  const rpc = process.env.CHAIN_RPC_URL;
-  const addr = process.env.AUDIT_CONTRACT_ADDRESS;
-  const pk = process.env.BACKEND_SIGNER_PRIVATE_KEY;
+  if (!user) {
+    console.log('⚠️ User not found for audit');
+    return { ok: false, error: "User not found" };
+  }
 
-  if (!rpc || !addr || !pk) return null;
-
-  const provider = new ethers.JsonRpcProvider(rpc);
-  const wallet = new ethers.Wallet(pk, provider);
-  const contract = new ethers.Contract(addr, abi, wallet);
-  return { contract, provider };
-}
-
-export async function logCapsuleCreated({ userAddress, rulesHash, limit }) {
-  const client = getClient();
-  if (!client) return { ok: false, skipped: true };
-
-  const tx = await client.contract.logCapsuleCreated(userAddress, rulesHash, BigInt(limit));
-  const receipt = await tx.wait();
-  return { ok: true, txHash: receipt.hash };
+  console.log(`📝 Logging capsule creation to Dash for user ${user.id}`);
+  return await logCapsuleToDash(
+    user.id,
+    userAddress,
+    rulesHash,
+    limit,
+    capsuleType || "REGULAR",
+    emergencyType || null
+  );
 }
 
 export async function logTxnDecision({ userAddress, merchant, mcc, amount, approved, riskTier }) {
-  const client = getClient();
-  if (!client) return { ok: false, skipped: true };
+  if (!enabled) {
+    console.log('📝 Dash audit disabled');
+    return { ok: false, skipped: true };
+  }
 
-  const tx = await client.contract.logTxnDecision(
+  const { db } = await import('../storage/memoryDb.js');
+  const user = [...db.users.values()].find(u => u.userAddress === userAddress);
+
+  if (!user) {
+    console.log('⚠️ User not found for audit');
+    return { ok: false, error: "User not found" };
+  }
+
+  console.log(`📝 Logging transaction to Dash for user ${user.id}`);
+  return await logTxnToDash(
+    user.id,
     userAddress,
     merchant,
     mcc,
-    BigInt(amount),
+    amount,
     approved,
     riskTier
   );
-  const receipt = await tx.wait();
-  return { ok: true, txHash: receipt.hash };
 }
 
 export function getAuditAbiAndAddress() {
   return {
     enabled,
-    address: process.env.AUDIT_CONTRACT_ADDRESS || "",
-    abi
+    platform: "Dash Platform",
+    message: "Audit logs are stored on Dash Platform using existing data contract",
+    contractId: process.env.DASH_CONTRACT_ID || ""
   };
+}
+
+export async function queryAuditLogs(userId, limit = 50) {
+  if (!enabled) {
+    return { ok: false, logs: [] };
+  }
+  return await getUserAuditLogs(userId, limit);
 }

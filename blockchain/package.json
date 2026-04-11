@@ -2,8 +2,7 @@
   "name": "audit-chain",
   "version": "1.0.0",
   "private": true,
-  "scripts": 
-  {
+  "scripts": {
     "node": "hardhat node",
     "compile": "hardhat compile",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost"
@@ -13,6 +12,7 @@
     "hardhat": "^2.22.10"
   },
   "dependencies": {
+    "dash": "^6.0.1",
     "ethers": "^6.13.2"
   }
 }
