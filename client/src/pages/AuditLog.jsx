@@ -22,7 +22,7 @@ export default function AuditLog({ user }) {
 
   if (!user) return <div className="card">🔐 Please login first.</div>;
 
-  // Apply filters whenever events or filters change (admin only)
+  // Apply filters whenever events or filters change
   useEffect(() => {
     let filtered = [...events];
 
@@ -488,218 +488,209 @@ export default function AuditLog({ user }) {
             {isLoading ? "⏳ Loading..." : "🧪 Load Demo Data"}
           </button>
         </div>
+      </div>
 
-        {/* Filter Section */}
-        <div style={{
-          borderTop: "1px solid #e0e0e0",
-          paddingTop: 15,
-          marginTop: 15
-          marginTop: 15
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <h4 style={{ margin: 0, fontSize: "14px" }}>🔍 Filters</h4>
-            <button onClick={resetFilters} className="btn-small" style={{ padding: "4px 12px" }}>
-              Reset All
-            </button>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
-            <select
-              value={filters.eventType}
-              onChange={(e) => setFilters({ ...filters, eventType: e.target.value })}
-              className="filter-select"
-            >
-              <option value="all">All Events</option>
-              <option value="all">All Events</option>
-              <option value="CapsuleCreated">📦 Capsule Created</option>
-              <option value="TxnDecision">💳 Transaction</option>
-              <option value="TxnDecision">💳 Transaction</option>
-            </select>
-
-            <select
-              value={filters.source}
-              onChange={(e) => setFilters({ ...filters, source: e.target.value })}
-              className="filter-select"
-            >
-              <option value="all">All Sources</option>
-              <option value="dash">⛓️ Dash</option>
-              <option value="demo">🧪 Demo</option>
-            </select>
-
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="filter-select"
-            >
-              <option value="all">All Decisions</option>
-              <option value="approved">✅ Approved</option>
-              <option value="denied">❌ Denied</option>
-            </select>
-
-            <select
-              value={filters.dateRange}
-              onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
-              className="filter-select"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Last 24 Hours</option>
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-            </select>
-          </div>
-
-          <div style={{ marginTop: "10px" }}>
-            <input
-              type="text"
-              placeholder="🔎 Search in merchant, amount, document ID..."
-              value={filters.searchText}
-              onChange={(e) => setFilters({ ...filters, searchText: e.target.value })}
-              className="filter-input"
-              style={{ width: "100%" }}
-            />
-          </div>
-
-          {/* Date range inputs */}
-          <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="filter-input"
-              placeholder="Start Date"
-            />
-            <span className="small">to</span>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="filter-input"
-              placeholder="End Date"
-            />
-          </div>
+      {/* Filter Section */}
+      <div style={{
+        borderTop: "1px solid #e0e0e0",
+        paddingTop: 15,
+        marginTop: 15
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h4 style={{ margin: 0, fontSize: "14px" }}>🔍 Filters</h4>
+          <button onClick={resetFilters} className="btn-small" style={{ padding: "4px 12px" }}>
+            Reset All
+          </button>
         </div>
 
-        {/* Export Controls */}
-        {events.length > 0 && (
-          <div style={{
-            display: "flex",
-            gap: "12px",
-            alignItems: "center",
-            flexWrap: "wrap",
-            paddingTop: 12,
-            marginTop: 12,
-            marginTop: 12,
-            borderTop: "1px solid #e0e0e0"
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="small">📤 Export as:</span>
-              <select
-                value={exportFormat}
-                onChange={(e) => setExportFormat(e.target.value)}
-                className="filter-select"
-                style={{ width: "auto" }}
-              >
-                <option value="csv">📊 CSV</option>
-                <option value="csv">📊 CSV</option>
-                <option value="json">🔧 JSON</option>
-              </select>
-            </div>
-            <button className="btn-primary-small" onClick={handleExport}>
-              <button className="btn-primary-small" onClick={handleExport}>
-                💾 Download {exportFormat.toUpperCase()}
-              </button>
-          </div>
-        )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
+          <select
+            value={filters.eventType}
+            onChange={(e) => setFilters({ ...filters, eventType: e.target.value })}
+            className="filter-select"
+          >
+            <option value="all">All Events</option>
+            <option value="CapsuleCreated">📦 Capsule Created</option>
+            <option value="TxnDecision">💳 Transaction</option>
+          </select>
 
-        {msg && (
-          <div className="small" style={{
-            marginTop: 12,
-            padding: "10px",
-            background: msg.includes("❌") || msg.includes("⚠️") ? "#fff3e0" : "#e8f5e9",
-            borderRadius: "6px"
-          }}>
-            {msg}
-          </div>
-        )}
+          <select
+            value={filters.source}
+            onChange={(e) => setFilters({ ...filters, source: e.target.value })}
+            className="filter-select"
+          >
+            <option value="all">All Sources</option>
+            <option value="dash">⛓️ Dash</option>
+            <option value="demo">🧪 Demo</option>
+          </select>
+
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            className="filter-select"
+          >
+            <option value="all">All Decisions</option>
+            <option value="approved">✅ Approved</option>
+            <option value="denied">❌ Denied</option>
+          </select>
+
+          <select
+            value={filters.dateRange}
+            onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
+            className="filter-select"
+          >
+            <option value="all">All Time</option>
+            <option value="today">Last 24 Hours</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">Last 30 Days</option>
+          </select>
+        </div>
+
+        <div style={{ marginTop: "10px" }}>
+          <input
+            type="text"
+            placeholder="🔎 Search in merchant, amount, document ID..."
+            value={filters.searchText}
+            onChange={(e) => setFilters({ ...filters, searchText: e.target.value })}
+            className="filter-input"
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        {/* Date range inputs */}
+        <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+            className="filter-input"
+            placeholder="Start Date"
+          />
+          <span className="small">to</span>
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+            className="filter-input"
+            placeholder="End Date"
+          />
+        </div>
       </div>
+
+      {/* Export Controls */}
+      {events.length > 0 && (
+        <div style={{
+          display: "flex",
+          gap: "12px",
+          alignItems: "center",
+          flexWrap: "wrap",
+          paddingTop: 12,
+          marginTop: 12,
+          borderTop: "1px solid #e0e0e0"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span className="small">📤 Export as:</span>
+            <select
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value)}
+              className="filter-select"
+              style={{ width: "auto" }}
+            >
+              <option value="csv">📊 CSV</option>
+              <option value="json">🔧 JSON</option>
+            </select>
+          </div>
+          <button className="btn-primary-small" onClick={handleExport}>
+            💾 Download {exportFormat.toUpperCase()}
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <div className="small" style={{
+          marginTop: 12,
+          padding: "10px",
+          background: msg.includes("❌") || msg.includes("⚠️") ? "#fff3e0" : "#e8f5e9",
+          borderRadius: "6px"
+        }}>
+          {msg}
+        </div>
+      )}
 
       {/* Summary Stats */}
       {filteredEvents.length > 0 && (
-        <div style={{ background: "#f5f5f5", padding: "12px", borderRadius: "8px", marginBottom: "15px" }}>
+        <div style={{ background: "#f5f5f5", padding: "12px", borderRadius: "8px", marginBottom: "15px", marginTop: "15px" }}>
           <div className="small">
             📊 Showing {filteredEvents.length} of {events.length} total events
-            <div style={{ background: "#f5f5f5", padding: "12px", borderRadius: "8px", marginBottom: "15px" }}>
-              <div className="small">
-                📊 Showing {filteredEvents.length} of {events.length} total events
-              </div>
-            </div>
+          </div>
+        </div>
       )}
 
-            {/* Events List */}
-            {filteredEvents.length === 0 && events.length > 0 ? (
-              <div className="small">🔍 No events match your filters. Try adjusting the filters above.</div>
-            ) : filteredEvents.length === 0 ? (
-              <div className="small">💡 No events loaded yet. Choose a data source above.</div>
-            ) : (
-              <div style={{ maxHeight: "500px", overflowY: "auto" }}>
-                {filteredEvents.map((e, i) => {
-                  const sourceBadge = getSourceBadge(e.source);
-                  const isApproved = e.approved;
+      {/* Events List */}
+      {filteredEvents.length === 0 && events.length > 0 ? (
+        <div className="small">🔍 No events match your filters. Try adjusting the filters above.</div>
+      ) : filteredEvents.length === 0 ? (
+        <div className="small">💡 No events loaded yet. Choose a data source above.</div>
+      ) : (
+        <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+          {filteredEvents.map((e, i) => {
+            const sourceBadge = getSourceBadge(e.source);
+            const isApproved = e.approved;
 
-                  return (
-                    <div key={i} style={{
-                      marginBottom: "10px",
-                      padding: "12px",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "8px",
-                      background: e.type === "TxnDecision" && isApproved !== undefined
-                        ? (isApproved ? "#e8f5e9" : "#ffebee")
-                        : "white"
+            return (
+              <div key={i} style={{
+                marginBottom: "10px",
+                padding: "12px",
+                border: "1px solid #e0e0e0",
+                borderRadius: "8px",
+                background: e.type === "TxnDecision" && isApproved !== undefined
+                  ? (isApproved ? "#e8f5e9" : "#ffebee")
+                  : "white"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                  <div>
+                    <span style={{
+                      display: "inline-block",
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      fontSize: "10px",
+                      fontWeight: "bold",
+                      backgroundColor: sourceBadge.color,
+                      color: "white",
+                      marginRight: "8px"
                     }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                        <div>
-                          <span style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: "4px",
-                            fontSize: "10px",
-                            fontWeight: "bold",
-                            backgroundColor: sourceBadge.color,
-                            color: "white",
-                            marginRight: "8px"
-                          }}>
-                            {sourceBadge.label}
-                          </span>
-                          <b>
-                            {e.type === "CapsuleCreated" ? "📦 Capsule Created" : "💳 Transaction Decision"}
-                          </b>
-                          {e.type === "TxnDecision" && isApproved !== undefined && (
-                            <span style={{ marginLeft: "8px", fontSize: "12px" }}>
-                              {isApproved ? "✅ APPROVED" : "❌ DENIED"}
-                            </span>
-                          )}
-                        </div>
-                        {e.documentId && (
-                          <div className="small" style={{ fontFamily: "monospace", fontSize: "10px" }}>
-                            📄 Doc: {e.documentId.slice(0, 10)}...
-                          </div>
-                        )}
-                      </div>
-                      <div className="small" style={{ marginTop: "5px", wordBreak: "break-all" }}>
-                        {e.type === "TxnDecision" ? (
-                          <>Merchant: {e.merchant} | MCC: {e.mcc} | Amount: ${e.amount} | Risk: {e.riskTier}</>
-                        ) : (
-                          <>Capsule Limit: ${e.capsuleLimit} | Type: {e.capsuleType}</>
-                        )}
-                        {e.timestamp && <div style={{ marginTop: "5px", color: "#666" }}>🕐 {new Date(e.timestamp).toLocaleString()}</div>}
-                      </div>
+                      {sourceBadge.label}
+                    </span>
+                    <b>
+                      {e.type === "CapsuleCreated" ? "📦 Capsule Created" : "💳 Transaction Decision"}
+                    </b>
+                    {e.type === "TxnDecision" && isApproved !== undefined && (
+                      <span style={{ marginLeft: "8px", fontSize: "12px" }}>
+                        {isApproved ? "✅ APPROVED" : "❌ DENIED"}
+                      </span>
+                    )}
+                  </div>
+                  {e.documentId && (
+                    <div className="small" style={{ fontFamily: "monospace", fontSize: "10px" }}>
+                      📄 Doc: {e.documentId.slice(0, 10)}...
                     </div>
-                  );
-                })}
+                  )}
+                </div>
+                <div className="small" style={{ marginTop: "5px", wordBreak: "break-all" }}>
+                  {e.type === "TxnDecision" ? (
+                    <>Merchant: {e.merchant} | MCC: {e.mcc} | Amount: ${e.amount} | Risk: {e.riskTier}</>
+                  ) : (
+                    <>Capsule Limit: ${e.capsuleLimit} | Type: {e.capsuleType}</>
+                  )}
+                  {e.timestamp && <div style={{ marginTop: "5px", color: "#666" }}>🕐 {new Date(e.timestamp).toLocaleString()}</div>}
+                </div>
               </div>
-            )}
+            );
+          })}
+        </div>
+      )}
 
-            <style>{`
+      <style>{`
         .btn-dash, .btn-demo {
           padding: 8px 18px;
           border-radius: 6px;
@@ -718,14 +709,6 @@ export default function AuditLog({ user }) {
           border-radius: 6px;
           cursor: pointer;
         }
-        .btn-primary-small {
-          background: #4caf50;
-          color: white;
-          border: none;
-          padding: 6px 12px;
-          border-radius: 6px;
-          cursor: pointer;
-        }
         .btn-small {
           background: #666;
           color: white;
@@ -733,7 +716,6 @@ export default function AuditLog({ user }) {
           border-radius: 4px;
           cursor: pointer;
           font-size: 12px;
-          padding: 4px 12px;
           padding: 4px 12px;
         }
         .filter-select, .filter-input {
@@ -749,11 +731,7 @@ export default function AuditLog({ user }) {
           font-size: 12px;
           color: #666;
         }
-        .small {
-          font-size: 12px;
-          color: #666;
-        }
       `}</style>
-          </div>
-          );
+    </div>
+  );
 }
