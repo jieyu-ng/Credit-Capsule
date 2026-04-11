@@ -3,6 +3,7 @@ import { api } from "../lib/api.js";
 import { ethers } from "ethers";
 
 export default function AuditLog({ user }) {
+  const [viewMode, setViewMode] = useState("user"); // "user" or "admin"
   const [meta, setMeta] = useState(null);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -10,7 +11,7 @@ export default function AuditLog({ user }) {
   const [isLoading, setIsLoading] = useState(false);
   const [exportFormat, setExportFormat] = useState("csv");
   
-  // Filter states
+  // Filter states (admin only)
   const [filters, setFilters] = useState({
     eventType: "all",
     source: "all",
@@ -25,12 +26,16 @@ export default function AuditLog({ user }) {
 
   useEffect(() => {
     (async () => {
-      const m = await api.get("/api/audit/meta");
-      setMeta(m.data);
+      try {
+        const m = await api.get("/api/audit/meta");
+        setMeta(m.data);
+      } catch (e) {
+        console.error("Failed to load audit meta:", e);
+      }
     })();
   }, []);
 
-  // Apply filters whenever events or filters change
+  // Apply filters whenever events or filters change (admin only)
   useEffect(() => {
     let filtered = [...events];
     
@@ -90,252 +95,18 @@ export default function AuditLog({ user }) {
     setFilteredEvents(filtered);
   }, [events, filters]);
 
-  // Helper function to flatten args for CSV
-  const flattenArgsForCSV = (args, eventType) => {
-    const flat = {};
-    
-    if (eventType === "TxnDecision") {
-      flat.merchant = args.merchant || args.merchantType || "";
-      flat.mcc = args.mcc || args.merchantType || "";
-      flat.amount = args.amount || "";
-      flat.status = args.approved ? "APPROVED" : (args.approved === false ? "DENIED" : args.decision || "");
-      flat.riskTier = args.riskTier || args.tier || "";
-      flat.reason = args.reason || "";
-      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
-      flat.user = args.user || "";
-    } 
-    else if (eventType === "CapsuleCreated") {
-      flat.capsuleId = args.capsuleId || "";
-      flat.amount = args.amount || "";
-      flat.merchantType = args.merchantType || "";
-      flat.feeRate = args.feeRate || "";
-      flat.expiry = args.expiry || "";
-      flat.user = args.user || "";
-      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
+  const formatArgs = (args) => {
+    if (!args) return {};
+    if (typeof args.toObject === 'function') {
+      return args.toObject();
     }
-    else {
-      // Generic flattening for other event types
-      Object.keys(args).forEach(key => {
-        const value = args[key];
-        if (typeof value !== 'object' && value !== undefined) {
-          flat[key] = value?.toString() || value;
-        } else if (value && typeof value === 'object') {
-          flat[key] = JSON.stringify(value);
-        }
-      });
+    const result = {};
+    for (let key in args) {
+      if (typeof args[key] !== 'function') {
+        result[key] = args[key]?.toString() || args[key];
+      }
     }
-    
-    return flat;
-  };
-
-  // Updated CSV conversion with proper column separation
-  const convertToCSV = (eventsData) => {
-    if (eventsData.length === 0) return "";
-    
-    // Define all possible columns
-    const allColumns = [
-      "Source",
-      "Event Type",
-      "Block Number",
-      "Transaction Hash",
-      "Log Index",
-      "Timestamp",
-      // TxnDecision specific columns
-      "Merchant",
-      "MCC",
-      "Amount",
-      "Status",
-      "Risk Tier",
-      "Reason",
-      // CapsuleCreated specific columns
-      "Capsule ID",
-      "Merchant Type",
-      "Fee Rate",
-      "Expiry",
-      // Common columns
-      "User Address",
-      "Additional Data"
-    ];
-    
-    // Build rows
-    const rows = eventsData.map(event => {
-      const args = formatArgs(event.args);
-      const flatArgs = flattenArgsForCSV(args, event.type);
-      
-      const timestamp = flatArgs.timestamp || (event.blockNumber ? new Date(event.blockNumber * 1000).toLocaleString() : "");
-      
-      const row = {
-        "Source": event.source || "unknown",
-        "Event Type": event.type === "TxnDecision" ? "Transaction Decision" : "Capsule Created",
-        "Block Number": event.blockNumber || "",
-        "Transaction Hash": event.transactionHash || "",
-        "Log Index": event.logIndex || "",
-        "Timestamp": timestamp,
-        "Merchant": flatArgs.merchant || "",
-        "MCC": flatArgs.mcc || "",
-        "Amount": flatArgs.amount || "",
-        "Status": flatArgs.status || "",
-        "Risk Tier": flatArgs.riskTier || "",
-        "Reason": flatArgs.reason || "",
-        "Capsule ID": flatArgs.capsuleId || "",
-        "Merchant Type": flatArgs.merchantType || "",
-        "Fee Rate": flatArgs.feeRate || "",
-        "Expiry": flatArgs.expiry || "",
-        "User Address": flatArgs.user || "",
-        "Additional Data": JSON.stringify(flatArgs).substring(0, 500) // Limit to avoid huge cells
-      };
-      
-      return row;
-    });
-    
-    // Convert to CSV string
-    const headers = allColumns;
-    const csvRows = [
-      headers.join(","),
-      ...rows.map(row => {
-        return headers.map(header => {
-          const value = row[header] || "";
-          // Escape quotes and wrap in quotes if contains comma or newline
-          const escaped = String(value).replace(/"/g, '""');
-          return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped;
-        }).join(",");
-      })
-    ];
-    
-    return csvRows.join("\n");
-  };
-
-  // Alternative: Simple CSV with key columns only
-  const convertToSimpleCSV = (eventsData) => {
-    if (eventsData.length === 0) return "";
-    
-    const headers = [
-      "Date/Time",
-      "Event Type",
-      "Source",
-      "Merchant",
-      "MCC",
-      "Amount",
-      "Status",
-      "Risk Tier",
-      "Reason",
-      "Transaction Hash"
-    ];
-    
-    const rows = eventsData.map(event => {
-      const args = formatArgs(event.args);
-      const flatArgs = flattenArgsForCSV(args, event.type);
-      
-      const timestamp = flatArgs.timestamp 
-        ? new Date(flatArgs.timestamp).toLocaleString() 
-        : (event.blockNumber ? new Date(event.blockNumber * 1000).toLocaleString() : "");
-      
-      return [
-        timestamp,
-        event.type === "TxnDecision" ? "Transaction" : "Capsule",
-        event.source || "unknown",
-        flatArgs.merchant || "",
-        flatArgs.mcc || "",
-        flatArgs.amount || "",
-        flatArgs.status || (flatArgs.approved ? "APPROVED" : ""),
-        flatArgs.riskTier || "",
-        flatArgs.reason || "",
-        event.transactionHash ? event.transactionHash.substring(0, 20) + "..." : ""
-      ];
-    });
-    
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    ].join("\n");
-    
-    return csvContent;
-  };
-
-  const convertToJSON = (eventsData) => {
-    return JSON.stringify(eventsData.map(event => ({
-      source: event.source || "unknown",
-      type: event.type,
-      blockNumber: event.blockNumber,
-      transactionHash: event.transactionHash,
-      blockHash: event.blockHash,
-      logIndex: event.logIndex,
-      exportDate: new Date().toISOString(),
-      args: formatArgs(event.args)
-    })), null, 2);
-  };
-
-  const downloadFile = (content, filename, mimeType) => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExport = () => {
-    if (filteredEvents.length === 0) {
-      setMsg("⚠️ No events to export. Please load logs first.");
-      return;
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
-    
-    if (exportFormat === "csv") {
-      // Use detailed CSV with separate columns
-      const csvData = convertToCSV(filteredEvents);
-      downloadFile(csvData, `audit_log_${username}_${timestamp}.csv`, "text/csv");
-      setMsg(`📊 Exported ${filteredEvents.length} events to CSV with separate columns`);
-    } else {
-      const jsonData = convertToJSON(filteredEvents);
-      downloadFile(jsonData, `audit_log_${username}_${timestamp}.json`, "application/json");
-      setMsg(`🔧 Exported ${filteredEvents.length} events to JSON`);
-    }
-    
-    setTimeout(() => {
-      setMsg(prev => prev.includes("Exported") ? "" : prev);
-    }, 3000);
-  };
-
-  const handleExportSimple = () => {
-    if (filteredEvents.length === 0) {
-      setMsg("⚠️ No events to export. Please load logs first.");
-      return;
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
-    
-    const csvData = convertToSimpleCSV(filteredEvents);
-    downloadFile(csvData, `audit_log_simple_${username}_${timestamp}.csv`, "text/csv");
-    setMsg(`📊 Exported ${filteredEvents.length} events to simplified CSV`);
-    
-    setTimeout(() => {
-      setMsg(prev => prev.includes("Exported") ? "" : prev);
-    }, 3000);
-  };
-
-  const handleCopyToClipboard = async () => {
-    if (filteredEvents.length === 0) {
-      setMsg("⚠️ No events to copy.");
-      return;
-    }
-
-    const jsonData = convertToJSON(filteredEvents);
-    try {
-      await navigator.clipboard.writeText(jsonData);
-      setMsg(`📋 Copied ${filteredEvents.length} events to clipboard`);
-      setTimeout(() => {
-        setMsg(prev => prev.includes("copied") ? "" : prev);
-      }, 3000);
-    } catch (err) {
-      setMsg("❌ Failed to copy to clipboard");
-    }
+    return result;
   };
 
   // Load Recent Off-Chain Decisions
@@ -354,39 +125,39 @@ export default function AuditLog({ user }) {
         timestamp: Date.now() - 3600000
       },
       {
-        merchant: "MyMart",
+        merchant: "Walmart",
         type: "GROCERY",
-        amount: "150",
-        tier: "MEDIUM",
+        amount: "45",
+        tier: "LOW",
         status: "APPROVED",
         reason: "APPROVED",
         timestamp: Date.now() - 7200000
       },
       {
-        merchant: "MyMart",
-        type: "TRANSPORT",
-        amount: "1000",
-        tier: "MEDIUM",
-        status: "DENIED",
-        reason: "EXCEEDS_MAX_TRANSACTION",
-        timestamp: Date.now() - 10800000
-      },
-      {
-        merchant: "Shopee",
-        type: "TRANSPORT",
-        amount: "50",
-        tier: "MEDIUM",
-        status: "APPROVED",
-        reason: "APPROVED",
-        timestamp: Date.now() - 14400000
-      },
-      {
-        merchant: "Shopee",
-        type: "Groceries",
-        amount: "50",
+        merchant: "Restaurant",
+        type: "RESTAURANT",
+        amount: "35",
         tier: "MEDIUM",
         status: "DENIED",
         reason: "MCC_NOT_ALLOWED",
+        timestamp: Date.now() - 10800000
+      },
+      {
+        merchant: "Netflix",
+        type: "ENTERTAINMENT",
+        amount: "15",
+        tier: "HIGH",
+        status: "DENIED",
+        reason: "MCC_NOT_ALLOWED",
+        timestamp: Date.now() - 14400000
+      },
+      {
+        merchant: "Shell",
+        type: "FUEL",
+        amount: "60",
+        tier: "LOW",
+        status: "APPROVED",
+        reason: "APPROVED",
         timestamp: Date.now() - 18000000
       }
     ];
@@ -400,7 +171,8 @@ export default function AuditLog({ user }) {
         riskTier: decision.tier,
         decision: decision.status,
         reason: decision.reason,
-        timestamp: decision.timestamp
+        timestamp: decision.timestamp,
+        approved: decision.status === "APPROVED"
       },
       blockNumber: 200000 + index,
       transactionHash: `0x_offchain_${Date.now()}_${index}`,
@@ -545,35 +317,112 @@ export default function AuditLog({ user }) {
     });
   }
 
-  const formatArgs = (args) => {
-    if (!args) return {};
-    if (typeof args.toObject === 'function') {
-      return args.toObject();
-    }
-    const result = {};
-    for (let key in args) {
-      if (typeof args[key] !== 'function') {
-        result[key] = args[key]?.toString() || args[key];
-      }
-    }
-    return result;
-  };
-
-  const getSummary = () => {
-    const capsuleCount = filteredEvents.filter(e => e.type === "CapsuleCreated").length;
-    const txnCount = filteredEvents.filter(e => e.type === "TxnDecision").length;
-    const approvedCount = filteredEvents.filter(e => {
-      if (e.type === "TxnDecision") {
-        const args = formatArgs(e.args);
-        return args.approved === true;
-      }
-      return false;
-    }).length;
+  // Helper function to flatten args for CSV
+  const flattenArgsForCSV = (args, eventType) => {
+    const flat = {};
     
-    return { capsuleCount, txnCount, total: filteredEvents.length, approvedCount };
+    if (eventType === "TxnDecision") {
+      flat.merchant = args.merchant || args.merchantType || "";
+      flat.mcc = args.mcc || args.merchantType || "";
+      flat.amount = args.amount || "";
+      flat.status = args.approved ? "APPROVED" : (args.approved === false ? "DENIED" : args.decision || "");
+      flat.riskTier = args.riskTier || args.tier || "";
+      flat.reason = args.reason || "";
+      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
+      flat.user = args.user || "";
+    } 
+    else if (eventType === "CapsuleCreated") {
+      flat.capsuleId = args.capsuleId || "";
+      flat.amount = args.amount || "";
+      flat.merchantType = args.merchantType || "";
+      flat.feeRate = args.feeRate || "";
+      flat.expiry = args.expiry || "";
+      flat.user = args.user || "";
+      flat.timestamp = args.timestamp ? new Date(args.timestamp).toLocaleString() : "";
+    }
+    
+    return flat;
   };
 
-  const summary = getSummary();
+  const convertToCSV = (eventsData) => {
+    if (eventsData.length === 0) return "";
+    
+    const headers = [
+      "Source", "Event Type", "Block Number", "Transaction Hash",
+      "Timestamp", "Merchant", "MCC", "Amount", "Status", "Risk Tier", "Reason"
+    ];
+    
+    const rows = eventsData.map(event => {
+      const args = formatArgs(event.args);
+      const flatArgs = flattenArgsForCSV(args, event.type);
+      const timestamp = flatArgs.timestamp || (event.blockNumber ? new Date(event.blockNumber * 1000).toLocaleString() : "");
+      
+      return [
+        event.source || "unknown",
+        event.type === "TxnDecision" ? "Transaction" : "Capsule",
+        event.blockNumber || "",
+        event.transactionHash ? event.transactionHash.substring(0, 20) + "..." : "",
+        timestamp,
+        flatArgs.merchant || "",
+        flatArgs.mcc || "",
+        flatArgs.amount || "",
+        flatArgs.status || "",
+        flatArgs.riskTier || "",
+        flatArgs.reason || ""
+      ];
+    });
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    return csvContent;
+  };
+
+  const convertToJSON = (eventsData) => {
+    return JSON.stringify(eventsData.map(event => ({
+      source: event.source || "unknown",
+      type: event.type,
+      blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash,
+      args: formatArgs(event.args)
+    })), null, 2);
+  };
+
+  const downloadFile = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExport = () => {
+    if (filteredEvents.length === 0) {
+      setMsg("⚠️ No events to export.");
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const username = user?.username || user?.userAddress?.slice(0, 8) || "user";
+    
+    if (exportFormat === "csv") {
+      const csvData = convertToCSV(filteredEvents);
+      downloadFile(csvData, `audit_log_${username}_${timestamp}.csv`, "text/csv");
+      setMsg(`📊 Exported ${filteredEvents.length} events to CSV`);
+    } else {
+      const jsonData = convertToJSON(filteredEvents);
+      downloadFile(jsonData, `audit_log_${username}_${timestamp}.json`, "application/json");
+      setMsg(`🔧 Exported ${filteredEvents.length} events to JSON`);
+    }
+    
+    setTimeout(() => setMsg(""), 3000);
+  };
 
   const getSourceBadge = (source) => {
     switch(source) {
@@ -584,23 +433,179 @@ export default function AuditLog({ user }) {
     }
   };
 
+  // ============================================================
+  // USER VIEW - Simple transaction history for customers
+  // ============================================================
+  if (viewMode === "user") {
+    return (
+      <div className="card">
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+          gap: "10px"
+        }}>
+          <div>
+            <h3 style={{ margin: 0 }}>📋 Your Transaction History</h3>
+            <div className="small">View your recent capsule transactions</div>
+          </div>
+          <button className="btn-adminview"
+            onClick={() => setViewMode("admin")} >
+            🏦 Bank Admin View (Audit Log)
+          </button>
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+            <button className="btn-primary" onClick={loadRecentDecisions} disabled={isLoading}>
+              📋 Load My Recent Transactions
+            </button>
+            <button className="btn-secondary" onClick={loadMockData} disabled={isLoading}>
+              🧪 Load Demo Data
+            </button>
+          </div>
+
+          {isLoading && <div className="small">⏳ Loading...</div>}
+
+          {events.length === 0 ? (
+            <div className="small" style={{ textAlign: "center", padding: "40px", background: "#f5f5f5", borderRadius: "8px" }}>
+              💡 No transactions yet. Go to Transaction Test to make some.
+            </div>
+          ) : (
+            <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+              {events
+                .filter(e => e.type === "TxnDecision")
+                .slice(0, 20)
+                .map((e, i) => {
+                  const args = formatArgs(e.args);
+                  const isApproved = args.approved;
+                  const date = args.timestamp ? new Date(args.timestamp).toLocaleString() : "Recent";
+                  
+                  return (
+                    <div key={i} style={{
+                      marginBottom: "10px",
+                      padding: "12px",
+                      background: isApproved ? "#e8f5e9" : "#ffebee",
+                      borderRadius: "8px",
+                      borderLeft: isApproved ? "4px solid #4caf50" : "4px solid #f44336"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+                        <div>
+                          <span style={{ fontWeight: "bold" }}>
+                            {isApproved ? "✅ Approved" : "❌ Declined"}
+                          </span>
+                          <span style={{ marginLeft: "10px" }}>{args.merchant || "Unknown"}</span>
+                          <span style={{ marginLeft: "10px", fontSize: "12px", color: "#666" }}>{args.mcc || args.merchantType}</span>
+                        </div>
+                        <div>
+                          <b>${args.amount}</b>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "11px", marginTop: "5px", color: "#666" }}>
+                        {date}
+                        {!isApproved && args.reason && <span> • {args.reason}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        <div className="small" style={{ textAlign: "center", padding: "12px", background: "#e3f2fd", borderRadius: "8px" }}>
+          💡 <strong>Tip:</strong> Click "Bank Admin View" to see the full compliance dashboard with immutable blockchain audit logs.
+        </div>
+        
+        <style jsx>{`
+          .btn-primary {
+            background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
+          }
+          .btn-secondary {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+          }
+          .btn-secondary {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+          }
+          .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow:0 4px 12px rgba(107, 98, 83, 0.47);
+          }
+          .btn-adminview {
+            background: linear-gradient(135deg, #f89f1a, #ff9800, #ffaa00);
+            color: white;
+            border: none;
+            padding:8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .btn-adminview:hover {
+            transform: translateY(-2px);
+            box-shadow:0 4px 12px rgba(132, 94, 27, 0.47);
+            font-weight: bold;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // ADMIN VIEW - Full compliance dashboard
+  // ============================================================
   return (
     <div className="card">
-      <h3>📋 Audit Log Viewer</h3>
-      <div className="small">
-        🔄 Off-chain makes decisions; ⛓️ on-chain stores immutable logs.
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "15px",
+        flexWrap: "wrap",
+        gap: "10px"
+      }}>
+        <div>
+          <h3 style={{ margin: 0 }}>🏦 Compliance Dashboard</h3>
+          <div className="small">
+            🔄 Off-chain makes decisions; ⛓️ on-chain stores immutable logs.
+          </div>
+        </div>
+        <button className="btn-userview"
+          onClick={() => setViewMode("user")} >
+          👤 Switch to User View
+        </button>
       </div>
 
       {/* Data Source Buttons */}
-      <div className="card">
-        <div style={{ display: "flex", gap: "12px", marginBottom: 15, flexWrap: "wrap" }}>
-          <button className="btn btn-onchain" onClick={loadOnChain} disabled={isLoading}>
+      <div style={{ marginBottom: 15 }}>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <button className="btn-onchain" onClick={loadOnChain} disabled={isLoading}>
             {isLoading ? "⏳ Loading..." : "⛓️ Load Blockchain Logs"}
           </button>
-          <button className="btn btn-offchain" onClick={loadRecentDecisions} disabled={isLoading}>
+          <button className="btn-offchain" onClick={loadRecentDecisions} disabled={isLoading}>
             {isLoading ? "⏳ Loading..." : "📋 Load Recent Decisions"}
           </button>
-          <button className="btn btn-demo" onClick={loadMockData} disabled={isLoading}>
+          <button className="btn-demo" onClick={loadMockData} disabled={isLoading}>
             {isLoading ? "⏳ Loading..." : "🧪 Load Demo Data"}
           </button>
         </div>
@@ -609,7 +614,7 @@ export default function AuditLog({ user }) {
         <div style={{ 
           borderTop: "1px solid #e0e0e0", 
           paddingTop: 15,
-          marginBottom: 15
+          marginTop: 15
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <h4 style={{ margin: 0, fontSize: "14px" }}>🔍 Filters</h4>
@@ -618,15 +623,15 @@ export default function AuditLog({ user }) {
             </button>
           </div>
           
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
             <select 
               value={filters.eventType} 
               onChange={(e) => setFilters({...filters, eventType: e.target.value})}
               className="filter-select"
             >
-              <option value="all">All Event Types</option>
+              <option value="all">All Events</option>
               <option value="CapsuleCreated">📦 Capsule Created</option>
-              <option value="TxnDecision">💳 Transaction Decision</option>
+              <option value="TxnDecision">💳 Transaction</option>
             </select>
             
             <select 
@@ -662,31 +667,15 @@ export default function AuditLog({ user }) {
             </select>
           </div>
           
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "10px", marginTop: "10px" }}>
+          <div style={{ marginTop: "10px" }}>
             <input 
               type="text" 
               placeholder="🔎 Search in arguments, transaction hash..." 
               value={filters.searchText}
               onChange={(e) => setFilters({...filters, searchText: e.target.value})}
               className="filter-input"
+              style={{ width: "100%" }}
             />
-            <div style={{ display: "flex", gap: "8px" }}>
-              <input 
-                type="date" 
-                value={filters.startDate}
-                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
-                className="filter-input"
-                style={{ width: "130px" }}
-              />
-              <span className="small">to</span>
-              <input 
-                type="date" 
-                value={filters.endDate}
-                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-                className="filter-input"
-                style={{ width: "130px" }}
-              />
-            </div>
           </div>
         </div>
         
@@ -698,6 +687,7 @@ export default function AuditLog({ user }) {
             alignItems: "center", 
             flexWrap: "wrap",
             paddingTop: 12,
+            marginTop: 12,
             borderTop: "1px solid #e0e0e0"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -708,18 +698,12 @@ export default function AuditLog({ user }) {
                 className="filter-select"
                 style={{ width: "auto" }}
               >
-                <option value="csv">📊 CSV (Detailed)</option>
+                <option value="csv">📊 CSV</option>
                 <option value="json">🔧 JSON</option>
               </select>
             </div>
-            <button className="btn-primary" onClick={handleExport}>
+            <button className="btn-primary-small" onClick={handleExport}>
               💾 Download {exportFormat.toUpperCase()}
-            </button>
-            <button className="btn" onClick={handleExportSimple}>
-              📊 Download Simple CSV
-            </button>
-            <button className="btn" onClick={handleCopyToClipboard}>
-              📋 Copy to Clipboard
             </button>
           </div>
         )}
@@ -729,8 +713,7 @@ export default function AuditLog({ user }) {
             marginTop: 12, 
             padding: "10px", 
             background: msg.includes("❌") || msg.includes("⚠️") ? "#fff3e0" : "#e8f5e9", 
-            borderRadius: "6px",
-            borderLeft: msg.includes("❌") || msg.includes("⚠️") ? "4px solid #ff9800" : "4px solid #4caf50"
+            borderRadius: "6px"
           }}>
             {msg}
           </div>
@@ -739,20 +722,9 @@ export default function AuditLog({ user }) {
 
       {/* Summary Stats */}
       {filteredEvents.length > 0 && (
-        <div className="card" style={{ background: "#f5f5f5" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-            <div>
-              <strong>📊 Filtered Results</strong>
-              <div className="small">
-                📈 Total: {summary.total} | 
-                📦 Capsules: {summary.capsuleCount} | 
-                💳 Transactions: {summary.txnCount} |
-                ✅ Approved: {summary.approvedCount}
-              </div>
-            </div>
-            <div className="small">
-              🕐 Showing {filteredEvents.length} of {events.length} total events
-            </div>
+        <div style={{ background: "#f5f5f5", padding: "12px", borderRadius: "8px", marginBottom: "15px" }}>
+          <div className="small">
+            📊 Showing {filteredEvents.length} of {events.length} total events
           </div>
         </div>
       )}
@@ -770,7 +742,7 @@ export default function AuditLog({ user }) {
             const isApproved = args.approved;
             
             return (
-              <div key={i} className="event-card" style={{ 
+              <div key={i} style={{ 
                 marginBottom: "10px", 
                 padding: "12px",
                 border: "1px solid #e0e0e0",
@@ -840,6 +812,20 @@ export default function AuditLog({ user }) {
           border: 1px solid #ccc;
           background: white;
         }
+        .btn-userview {
+          background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        .btn-userview:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
+          font-weight: bold;
+        }
         .btn-onchain, .btn-offchain, .btn-demo {
           padding: 8px 18px;
           border-radius: 6px;
@@ -862,6 +848,16 @@ export default function AuditLog({ user }) {
         .btn-demo:hover {
           transform: translateY(-2px);
           box-shadow:0 4px 12px rgba(27, 97, 132, 0.47);
+        .btn-onchain { background: #4caf50; }
+        .btn-offchain { background: #ff9800; }
+        .btn-demo { background: #2196f3; }
+        .btn-primary-small {
+          background: #4caf50;
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 6px;
+          cursor: pointer;
         }
         .btn-small {
           background: #666;
@@ -870,6 +866,7 @@ export default function AuditLog({ user }) {
           border-radius: 4px;
           cursor: pointer;
           font-size: 12px;
+          padding: 4px 12px;
         }
         .btn-small:hover {
           transform: translateY(-2px);
@@ -883,6 +880,10 @@ export default function AuditLog({ user }) {
         }
         .card {
           margin-bottom: 15px;
+        }
+        .small {
+          font-size: 12px;
+          color: #666;
         }
       `}</style>
     </div>
