@@ -109,7 +109,7 @@ export default function Dashboard({ user }) {
     }
   };
 
-  if (!user) return <div className="card">🔐 Please login first.</div>;
+  if (!user) return <div className="card"> Please login first.</div>;
 
   // Calculate time-based analytics
   const now = new Date();

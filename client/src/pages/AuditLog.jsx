@@ -22,7 +22,7 @@ export default function AuditLog({ user }) {
     endDate: ""
   });
 
-  if (!user) return <div className="card">🔐 Please login first.</div>;
+  if (!user) return <div className="card"> Please login first.</div>;
 
   useEffect(() => {
     (async () => {
