@@ -1,3 +1,4 @@
+//txn
 import express from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
@@ -10,8 +11,11 @@ export const txnRouter = express.Router();
 const txnSchema = z.object({
   merchant: z.string().min(2),
   mcc: z.string().min(2),
+  mcc: z.string().min(2),
   amount: z.number().int().positive(),
   deviceId: z.string().min(2),
+  geo: z.string().min(2),
+  pd: z.number().min(0).max(1),
   geo: z.string().min(2),
   pd: z.number().min(0).max(1),
   faceToken: z.string().optional(),
@@ -62,18 +66,27 @@ txnRouter.post("/test", requireAuth, async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
 
   const userId = req.user.userId;
   const user = db.users.get(userId);
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
 
+  // Auto-create default capsule if none exists (for demo convenience)
+  const cap = ensureDefaultCapsule(userId, user.approvedLimit);
   // Auto-create default capsule if none exists (for demo convenience)
   const cap = ensureDefaultCapsule(userId, user.approvedLimit);
 
   rotateDaily(userId);
 
+  // Anomalies detection
   // Anomalies detection
   const state = db.deviceState.get(userId) || { lastDeviceId: null, lastGeo: null };
   const deviceChanged = state.lastDeviceId && state.lastDeviceId !== parsed.data.deviceId;
@@ -90,8 +103,13 @@ txnRouter.post("/test", requireAuth, async (req, res) => {
   // Step-up auth enforcement
   if (risk.tier === "MEDIUM") {
     if (!parsed.data.faceToken) {
-      return res.status(401).json({ 
-        error: "Step-up required: faceToken", 
+      return res.status(401).json({
+        error: "Step-up required: faceToken",
+        risk,
+        requiredAuth: "FACE_TOKEN"
+      });
+      return res.status(401).json({
+        error: "Step-up required: faceToken",
         risk,
         requiredAuth: "FACE_TOKEN"
       });
@@ -99,39 +117,51 @@ txnRouter.post("/test", requireAuth, async (req, res) => {
   }
   if (risk.tier === "HIGH") {
     if (!parsed.data.faceToken || !parsed.data.otp) {
-      return res.status(401).json({ 
-        error: "Step-up required: faceToken + otp", 
+      return res.status(401).json({
+        error: "Step-up required: faceToken + otp",
+        risk,
+        requiredAuth: "FACE_TOKEN_AND_OTP"
+      });
+      return res.status(401).json({
+        error: "Step-up required: faceToken + otp",
         risk,
         requiredAuth: "FACE_TOKEN_AND_OTP"
       });
     }
     if (parsed.data.otp !== "123456") {
-      return res.status(401).json({ 
-        error: "Invalid OTP (demo expects 123456)", 
-        risk 
+      return res.status(401).json({
+        error: "Invalid OTP (demo expects 123456)",
+        risk
+      });
+      return res.status(401).json({
+        error: "Invalid OTP (demo expects 123456)",
+        risk
       });
     }
   }
 
   // Capsule rules check
+  // Capsule rules check
   const { merchant, mcc, amount } = parsed.data;
   const rules = cap.rules;
-  
+
   // Case-insensitive MCC check with "ALL" wildcard support
-const normalizedMcc = mcc.toUpperCase();
-const allowedMccUpper = rules.allowedMcc.map(m => m.toUpperCase());
+  const normalizedMcc = mcc.toUpperCase();
+  const allowedMccUpper = rules.allowedMcc.map(m => m.toUpperCase());
 
-let approved = true;
-let reason = "APPROVED";
-let debugInfo = {};
+  let approved = true;
+  let reason = "APPROVED";
+  let debugInfo = {};
 
-// Check if "ALL" is in allowed list (wildcard - approve any MCC)
-const isWildcardAll = allowedMccUpper.includes("ALL");
+  // Check if "ALL" is in allowed list (wildcard - approve any MCC)
+  const isWildcardAll = allowedMccUpper.includes("ALL");
 
-if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
-  approved = false;
-  reason = `MCC_NOT_ALLOWED: "${mcc}" not in allowed list [${rules.allowedMcc.join(", ")}]`;
+  if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
+    approved = false;
+    reason = `MCC_NOT_ALLOWED: "${mcc}" not in allowed list [${rules.allowedMcc.join(", ")}]`;
   } else if (amount > rules.maxTransaction) {
+    approved = false;
+    reason = `EXCEEDS_MAX_TRANSACTION: $${amount} > $${rules.maxTransaction}`;
     approved = false;
     reason = `EXCEEDS_MAX_TRANSACTION: $${amount} > $${rules.maxTransaction}`;
   } else if (cap.spentToday + amount > rules.dailyCap) {
@@ -140,8 +170,14 @@ if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
   } else if (cap.spentTotal + amount > cap.capsuleLimit) {
     approved = false;
     reason = `EXCEEDS_CAPSULE_LIMIT: Total $${cap.spentTotal} + $${amount} > $${cap.capsuleLimit}`;
+    approved = false;
+    reason = `EXCEEDS_DAILY_CAP: Daily $${cap.spentToday} + $${amount} > $${rules.dailyCap}`;
+  } else if (cap.spentTotal + amount > cap.capsuleLimit) {
+    approved = false;
+    reason = `EXCEEDS_CAPSULE_LIMIT: Total $${cap.spentTotal} + $${amount} > $${cap.capsuleLimit}`;
   }
 
+  // Update device state
   // Update device state
   state.lastDeviceId = parsed.data.deviceId;
   state.lastGeo = parsed.data.geo;
@@ -162,9 +198,26 @@ if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
     reason,
     ts: Date.now(),
     timestamp: new Date().toISOString()
+    ts: Date.now(),
+    timestamp: new Date().toISOString()
   };
   db.txns.push(record);
 
+  // Log to blockchain (optional, don't fail if it errors)
+  let chain = { ok: false, skipped: true };
+  try {
+    chain = await logTxnDecision({
+      userAddress: user.userAddress,
+      merchant,
+      mcc,
+      amount,
+      approved,
+      riskTier: risk.tier
+    });
+  } catch (chainError) {
+    console.warn("Blockchain logging failed:", chainError.message);
+    chain = { ok: false, error: chainError.message };
+  }
   // Log to blockchain (optional, don't fail if it errors)
   let chain = { ok: false, skipped: true };
   try {
@@ -194,9 +247,26 @@ if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
         velScore: vel
       }
     },
-    capsule: { 
-      spentToday: cap.spentToday, 
-      spentTotal: cap.spentTotal, 
+    capsule: {
+      spentToday: cap.spentToday,
+      spentTotal: cap.spentTotal,
+      capsuleLimit: cap.capsuleLimit,
+      dailyRemaining: rules.dailyCap - cap.spentToday,
+      allowedMcc: rules.allowedMcc
+    },
+    risk: {
+      tier: risk.tier,
+      score: risk.score || (risk.tier === "LOW" ? 20 : risk.tier === "MEDIUM" ? 50 : 80),
+      breakdown: {
+        pdScore: parsed.data.pd > 0.08 ? 30 : parsed.data.pd > 0.03 ? 15 : 5,
+        deviceScore: deviceChanged ? 20 : 0,
+        geoScore: geoAnomaly ? 15 : 0,
+        velScore: vel
+      }
+    },
+    capsule: {
+      spentToday: cap.spentToday,
+      spentTotal: cap.spentTotal,
       capsuleLimit: cap.capsuleLimit,
       dailyRemaining: rules.dailyCap - cap.spentToday,
       allowedMcc: rules.allowedMcc
@@ -209,14 +279,14 @@ if (!isWildcardAll && !allowedMccUpper.includes(normalizedMcc)) {
 txnRouter.get("/capsule-status", requireAuth, (req, res) => {
   const userId = req.user.userId;
   const cap = db.capsules.get(userId);
-  
+
   if (!cap) {
-    return res.json({ 
-      hasCapsule: false, 
-      message: "No capsule. Please create one in Capsule Setup." 
+    return res.json({
+      hasCapsule: false,
+      message: "No capsule. Please create one in Capsule Setup."
     });
   }
-  
+
   return res.json({
     hasCapsule: true,
     capsule: {
@@ -233,7 +303,7 @@ txnRouter.post("/quick-setup", requireAuth, (req, res) => {
   const userId = req.user.userId;
   const user = db.users.get(userId);
   const today = new Date().toISOString().slice(0, 10);
-  
+
   const demoCapsule = {
     rules: {
       allowedMcc: [
@@ -247,9 +317,61 @@ txnRouter.post("/quick-setup", requireAuth, (req, res) => {
     spentToday: 0,
     todayDate: today
   };
-  
+
   db.capsules.set(userId, demoCapsule);
-  
+
+  res.json({
+    success: true,
+    message: "Demo capsule created! Allowed MCCs: GROCERY, RESTAURANT, TRANSPORT, FUEL, EDUCATION, MEDICAL",
+    capsule: demoCapsule
+  });
+});
+
+// Helper endpoint to check current capsule
+txnRouter.get("/capsule-status", requireAuth, (req, res) => {
+  const userId = req.user.userId;
+  const cap = db.capsules.get(userId);
+
+  if (!cap) {
+    return res.json({
+      hasCapsule: false,
+      message: "No capsule. Please create one in Capsule Setup."
+    });
+  }
+
+  return res.json({
+    hasCapsule: true,
+    capsule: {
+      limit: cap.capsuleLimit,
+      spentTotal: cap.spentTotal,
+      spentToday: cap.spentToday,
+      rules: cap.rules
+    }
+  });
+});
+
+// Quick demo capsule setup (bypasses normal creation)
+txnRouter.post("/quick-setup", requireAuth, (req, res) => {
+  const userId = req.user.userId;
+  const user = db.users.get(userId);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const demoCapsule = {
+    rules: {
+      allowedMcc: [
+        "GROCERY", "RESTAURANT", "TRANSPORT", "FUEL", "EDUCATION", "MEDICAL", "SHOPPING", "UTILITIES"
+      ],
+      maxTransaction: 200,
+      dailyCap: 300
+    },
+    capsuleLimit: Math.min(user?.approvedLimit || 500, 500),
+    spentTotal: 0,
+    spentToday: 0,
+    todayDate: today
+  };
+
+  db.capsules.set(userId, demoCapsule);
+
   res.json({
     success: true,
     message: "Demo capsule created! Allowed MCCs: GROCERY, RESTAURANT, TRANSPORT, FUEL, EDUCATION, MEDICAL",

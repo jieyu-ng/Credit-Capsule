@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "crypto";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
-import { db } from "../storage/memoryDb.js";
+import { db, getBankData, findUserById } from "../storage/memoryDb.js";
 import { logCapsuleCreated } from "../services/auditChain.js";
 import { getClient, mineBlocks } from "../services/dashClient.js";
 

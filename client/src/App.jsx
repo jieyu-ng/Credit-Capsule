@@ -40,10 +40,10 @@ export default function App() {
           <h2 style={{ margin: 0 }}>Risk-Aware Capsule Credit</h2>
           <div className="small">Monte Carlo PD • Risk-tiered step-up auth • Blockchain audit trail</div>
         </div>
-        
+
         {/* Bank Link Button - only show when user is logged in AND bank not linked */}
         {user && !hasBankLinked && (
-          <button 
+          <button
             onClick={() => setShowBankModal(true)}
             style={{
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -60,7 +60,7 @@ export default function App() {
             🏦 Link Bank Account
           </button>
         )}
-        
+
         {user && hasBankLinked && (
           <div style={{
             background: "#e8f5e9",
@@ -96,10 +96,12 @@ export default function App() {
         <Route path="/capsule" element={<CapsuleSetup user={user} />} />
         <Route path="/txn" element={<TxnTest user={user} />} />
         <Route path="/audit" element={<AuditLog user={user} />} />
+        <Route path="/bank-login" element={<BankLogin />} />
+        <Route path="/bank-login-modal" element={<BankLoginModal />} />
       </Routes>
 
       {/* Bank Login Modal - only renders when showBankModal is true */}
-      <BankLoginModal 
+      <BankLoginModal
         isOpen={showBankModal}
         onClose={() => setShowBankModal(false)}
         onSuccess={() => {
