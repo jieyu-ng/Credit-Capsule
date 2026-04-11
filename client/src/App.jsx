@@ -33,6 +33,10 @@ export default function App() {
 
   const hasBankLinked = user?.bankLinked === true;
 
+  const isActive = (path) => {
+    return location.pathname === path;
+  }
+
   return (
     <div className="container">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -43,24 +47,11 @@ export default function App() {
         
         {/* Bank Link Button - only show when user is logged in AND bank not linked */}
         {user && !hasBankLinked && (
-          <button 
-            onClick={() => setShowBankModal(true)}
-            style={{
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "white",
-              border: "none",
-              padding: "8px 20px",
-              borderRadius: "25px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "500",
-              transition: "all 0.2s ease"
-            }}
-          >
+          <button className="btn-third"
+            onClick={() => setShowBankModal(true)}>
             🏦 Link Bank Account
           </button>
         )}
-        
         {user && hasBankLinked && (
           <div style={{
             background: "#e8f5e9",
@@ -80,12 +71,11 @@ export default function App() {
       </div>
 
       <div className="nav">
-        <Link className="badge" to="/">Login</Link>
-        <Link className="badge" to="/dashboard">Dashboard</Link>
-        <Link className="badge" to="/risk">Risk Simulation</Link>
-        <Link className="badge" to="/capsule">Capsule Setup</Link>
-        <Link className="badge" to="/txn">Transaction Test</Link>
-        <Link className="badge" to="/audit">Audit Log</Link>
+        <Link className={`badge ${isActive('/') ? 'active' : ''}`} to="/">Login</Link>
+        <Link className={`badge ${isActive('/risk') ? 'active' : ''}`} to="/risk">Risk Simulation</Link>
+        <Link className={`badge ${isActive('/capsule') ? 'active' : ''}`} to="/capsule">Capsule Setup</Link>
+        <Link className={`badge ${isActive('/txn') ? 'active' : ''}`} to="/txn">Transaction Test</Link>
+        <Link className={`badge ${isActive('/audit') ? 'active' : ''}`} to="/audit">Audit Log</Link>
         {user && <button className="badge" onClick={logout}>Logout</button>}
       </div>
 
@@ -109,6 +99,60 @@ export default function App() {
           setShowBankModal(false);
         }}
       />
+      <style jsx>{`
+        .btn-third {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          padding: 8px 20px;
+          border-radius: 25px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
+          z-index: 1;
+        }
+        .btn-third:before, .btn-third:after {
+            position: absolute;
+            content: "";
+            height: 0%;
+            width: 1px;
+            box-shadow:
+            -1px -1px 20px 0px rgba(255, 255, 255, 0.39),
+            -4px -4px 5px 0px rgba(255, 255, 255, 0.39),
+            7px 7px 20px 0px rgba(0,0,0,.4),
+            4px 4px 5px 0px rgba(0,0,0,.3);
+          }
+        .btn-third:before {
+          right: 0;
+          top: 0;
+          transition: all 500ms ease;
+        }
+        .btn-third:after {
+          left: 0;
+          bottom: 0;
+          transition: all 500ms ease;
+        }
+        .btn-third:hover{
+          background: #76adf119;
+          color: #3d86e0;
+          box-shadow: none;
+        }
+        .btn-third:hover:before {
+          transition: all 500ms ease;
+          height: 100%;
+        }
+        .btn-third:hover:after {
+          transition: all 500ms ease;
+          height: 100%;
+        }
+        .btn-third:active {
+          transform: translateY(0);
+        }
+      `}
+      </style>
     </div>
   );
 }

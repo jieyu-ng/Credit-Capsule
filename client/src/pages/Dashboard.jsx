@@ -224,12 +224,12 @@ export default function Dashboard({ user }) {
             <option value="month">Last 30 Days</option>
             <option value="all">All Time</option>
           </select>
-          <button 
+          <button className="btn-draw"
             onClick={loadData} 
             disabled={isLoading}
             style={{
               padding: "5px 12px",
-              background: "#4caf50",
+              background: "linear-gradient(135deg, #adb4c3 0%, #42536b 100%)",
               color: "white",
               border: "none",
               borderRadius: "5px",
@@ -238,11 +238,11 @@ export default function Dashboard({ user }) {
           >
             {isLoading ? "⏳" : "🔄"}
           </button>
-          <button 
+          <button className="btn-draw"
             onClick={() => setShowDetailedStats(!showDetailedStats)}
             style={{
               padding: "5px 12px",
-              background: "#2196f3",
+              background: "linear-gradient(135deg, #adb4c3 0%, #42536b 100%)",
               color: "white",
               border: "none",
               borderRadius: "5px",
@@ -527,6 +527,23 @@ export default function Dashboard({ user }) {
         }
         .txn-item:hover {
           transform: translateX(5px);
+        }
+        .btn-draw {
+          background: transparent;
+          color: #2196f3;
+          border: 2px solid #2196f3;
+          padding: 10px 24px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.5s ease;
+        }
+
+        .btn-draw:hover {
+          background: #2196f3;
+          color: white;
+          border-color: #2196f3;
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
         }
       `}</style>
     </div>

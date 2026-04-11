@@ -483,12 +483,16 @@ export default function TxnTest({ user }) {
       
       <style jsx>{`
         .btn-primary {
-          background: linear-gradient(135deg, #4caf50, #45a049);
+          background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
           color: white;
           border: none;
           padding: 8px 16px;
           border-radius: 6px;
           cursor: pointer;
+        }
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
         }
         .btn-secondary {
           background: #666;
@@ -498,21 +502,33 @@ export default function TxnTest({ user }) {
           border-radius: 6px;
           cursor: pointer;
         }
+        .btn-secondary:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(107, 98, 83, 0.47);
+        }
         .btn-success {
-          background: #4caf50;
+          background: linear-gradient(135deg, #53cc57, #4caf50, #09c313);
           color: white;
           border: none;
           padding: 8px 16px;
           border-radius: 6px;
           cursor: pointer;
         }
+        .btn-success:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(27, 132, 57, 0.47);
+        }
         .btn-warning {
-          background: #ff9800;
+          background: linear-gradient(135deg, #f89f1a, #ff9800, #ffaa00);
           color: white;
           border: none;
           padding: 8px 16px;
           border-radius: 6px;
           cursor: pointer;
+        }
+        .btn-warning:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(132, 94, 27, 0.47);
         }
         .btn-danger {
           background: #f44336;
@@ -522,6 +538,10 @@ export default function TxnTest({ user }) {
           border-radius: 6px;
           cursor: pointer;
         }
+        .btn-danger:hover {
+          transform: translateY(-2px);
+          box-shadow:0 4px 12px rgba(132, 46, 27, 0.47);
+        }
         .btn-small {
           padding: 4px 10px;
           border-radius: 4px;
@@ -530,11 +550,11 @@ export default function TxnTest({ user }) {
           color: white;
         }
         .mode-active {
-          background: #2196f3;
+          background: linear-gradient(135deg, #2196f3, #1d75bc, #212ff3);
           color: white;
           border: none;
           padding: 6px 16px;
-          border-radius: 20px;
+          border-radius: 6px;
           cursor: pointer;
         }
         .mode-inactive {
@@ -542,7 +562,7 @@ export default function TxnTest({ user }) {
           color: #666;
           border: none;
           padding: 6px 16px;
-          border-radius: 20px;
+          border-radius: 6px;
           cursor: pointer;
         }
         .input {
